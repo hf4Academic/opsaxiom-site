@@ -1,0 +1,67 @@
+<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>磁盘 SMART 预警排查</title><style>
+:root{--bg:#f8fafc;--card:#ffffff;--fg:#1e293b;--mut:#64748b;--acc:#2563eb;--line:#e2e8f0}
+*{box-sizing:border-box}body{margin:0;font:15px/1.6 -apple-system,Segoe UI,Roboto,'Noto Sans CJK SC',sans-serif;background:var(--bg);color:var(--fg)}
+a{color:var(--acc);text-decoration:none}a:hover{text-decoration:underline}
+nav{display:flex;gap:18px;align-items:center;padding:12px 32px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0}
+nav .brand{font-weight:700;color:var(--fg)}nav a{color:var(--mut);font-size:14px}nav a.on,nav a:hover{color:var(--acc)}
+nav .gh{margin-left:auto}
+header{padding:22px 32px;border-bottom:1px solid var(--line);background:#fff}
+h1{margin:0;font-size:22px}.sub{color:var(--mut);font-size:13px;margin-top:4px}
+.wrap{max-width:1000px;margin:0 auto;padding:24px 32px}
+input#q{width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--line);background:#fff;color:var(--fg);font-size:15px;margin-bottom:20px}
+.dom{color:var(--mut);text-transform:uppercase;font-size:12px;letter-spacing:.08em;margin:22px 0 8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:8px 0;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+.card h3{margin:0 0 4px;font-size:16px}.badge{font-size:12px;padding:2px 8px;border-radius:999px;color:#fff;font-weight:600}
+.mut{color:var(--mut);font-size:13px}
+.node{background:#f1f5f9;border-left:3px solid #cbd5e1;padding:8px 12px;margin:6px 0;border-radius:6px}
+.node .t{font-weight:600}.caut{color:#b45309;font-size:13px;margin:3px 0 3px 12px}
+.exit-done{border-left-color:#22c55e}.exit-esc{border-left-color:#f59e0b}
+table{width:100%;border-collapse:collapse;margin-top:8px}td,th{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);font-size:13px}
+.pill{font-size:12px;color:var(--mut)}
+.btn{display:inline-block;padding:8px 14px;border-radius:10px;border:1px solid var(--line);background:#fff;font-size:14px}
+.btn:hover{border-color:var(--acc);text-decoration:none}
+.btn.warn{color:#b91c1c;border-color:#fecaca}.btn.warn:hover{border-color:#b91c1c}
+.badge{display:inline-flex;align-items:center;gap:4px;line-height:1.4}
+.legend{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 20px}
+.legend-title{font-size:13px;color:var(--mut);margin-bottom:10px}
+.legend-item{display:flex;align-items:center;gap:10px;padding:5px 0}
+.legend-txt{font-size:13px;color:var(--fg)}
+@media(min-width:640px){.legend{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px}.legend-title{grid-column:1/-1}}
+.step{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:12px 0}
+.step h3{margin:0 0 6px;font-size:15px}
+code,pre{background:#f1f5f9;border-radius:6px;padding:1px 6px;font-size:13px}
+pre{padding:12px 14px;overflow:auto;line-height:1.5}
+</style></head><body><nav><span class="brand">🦫 OpsAxiom Hub</span><a href="../index.html" class="on">Skill 库</a><a href="../contribute.html">怎么贡献</a><a href="../governance.html">治理与投诉</a><a class="gh" href="https://github.com/hf4Academic/opsaxiom-registry">GitHub ↗</a></nav><header><h1>磁盘 SMART 预警排查 <span class="badge" style="background:#3b82f6" title="在模拟环境里跑通了整套判断逻辑">🧪 仿真验证</span></h1><div class="sub"><code>host.storage.smart-failing</code> · host/storage/smart-failing · v0.1.0</div><div style="margin-top:10px"><a class="btn" href="../index.html">← 返回首页</a> <a class="btn warn" href="https://github.com/hf4Academic/opsaxiom-registry/issues/new?labels=report&title=%5Breport%5D%20host.storage.smart-failing&body=%23%23%20被投诉%20Skill%0A%60host.storage.smart-failing%60%0A%0A%23%23%20问题（误导%2F翻车%2F过时%2F安全隐患）%0A%0A%23%23%20环境与复现%0A">👎 投诉此 Skill</a></div></header><div class="wrap"><h2>决策树</h2><p class="mut">入口：<code>scan_health</code></p>
+<div class="node">
+<div class="t">[check] scan_health — 逐盘 SMART 总体健康判定</div>
+<div class="mut">· 当 <code>output.failed_count &gt;= 1</code> → check_attrs</div>
+<div class="mut">· 当 <code>output.failed_count == 0</code> → check_attrs</div>
+<div class="mut">· 否则 → check_attrs</div>
+<div class="caut">⚠ SMART PASSED 不代表盘健康！总体判定只反映厂商预设阈值，关键属性（pending/uncorrectable）越界前常仍显示 PASSED——必须看属性明细，这是本 Skill 存在的核心原因</div>
+<div class="caut">⚠ RAID 卡后面的物理盘直连扫不到，要 `smartctl -A -d megaraid,N /dev/sda`（N 为盘位）</div>
+</div>
+<div class="node">
+<div class="t">[check] check_attrs — 读取关键属性区分根因</div>
+<div class="mut">· 当 <code>output.pending &gt; 0 or output.uncorrectable &gt; 0</code> → done_dying</div>
+<div class="mut">· 当 <code>output.reallocated &gt; 50</code> → done_plan_replace</div>
+<div class="mut">· 当 <code>output.crc_errors &gt; 100</code> → done_check_cable</div>
+<div class="mut">· 当 <code>output.pending == 0 and output.uncorrectable == 0 and output.reallocated &lt;= 50 and output.crc_errors &lt;= 100</code> → done_healthy</div>
+<div class="mut">· 否则 → escalate</div>
+<div class="caut">⚠ NVMe 属性字段名不同（Percentage_Used/Media_and_Data_Integrity_Errors），解析器两种都认</div>
+<div class="caut">⚠ Current_Pending_Sector&gt;0 是最危险信号：有扇区读不出来正等待重映射，盘随时可能整片失效</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] done_dying — 盘即将失效：有待重映射/不可修复扇区（pending={{output.pending}}、uncorrectable={{output.uncorrectable}}）。 **立即人工处置（Agent 不代执行）：① 先 rsync/备份</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] done_plan_replace — 重映射扇区偏多（reallocated={{output.reallocated}}&gt;50）。盘在缓慢劣化，尚可用但寿命有限——排入计划性换盘窗口，换前确保有备份。</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] done_check_cable — CRC 错误多（crc_errors={{output.crc_errors}}&gt;100）。**这是 SATA 线缆/接口/背板问题，不是盘坏！** 换盘白花钱。处置：重插或更换数据线、检查背板供电与接口氧化。CRC 错误只影响传输、</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] done_healthy — 关键属性均在安全范围（无 pending/uncorrectable、重映射少、CRC 低）。当前无换盘必要，建议纳入定期 SMART 巡检基线跟踪趋势。</div>
+</div>
+<div class="node exit-esc">
+<div class="t">[escalate] escalate — 打包升级：各盘 -H 总判 + -A 全属性、盘型号与接口类型、dmesg 近期 I/O error。</div>
+</div><h2>实地验证（attestation）</h2><p class="mut">暂无实地验证记录。</p></div></body></html>

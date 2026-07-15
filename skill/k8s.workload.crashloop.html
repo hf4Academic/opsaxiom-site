@@ -1,0 +1,81 @@
+<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Pod CrashLoopBackOff 排查</title><style>
+:root{--bg:#f8fafc;--card:#ffffff;--fg:#1e293b;--mut:#64748b;--acc:#2563eb;--line:#e2e8f0}
+*{box-sizing:border-box}body{margin:0;font:15px/1.6 -apple-system,Segoe UI,Roboto,'Noto Sans CJK SC',sans-serif;background:var(--bg);color:var(--fg)}
+a{color:var(--acc);text-decoration:none}a:hover{text-decoration:underline}
+nav{display:flex;gap:18px;align-items:center;padding:12px 32px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0}
+nav .brand{font-weight:700;color:var(--fg)}nav a{color:var(--mut);font-size:14px}nav a.on,nav a:hover{color:var(--acc)}
+nav .gh{margin-left:auto}
+header{padding:22px 32px;border-bottom:1px solid var(--line);background:#fff}
+h1{margin:0;font-size:22px}.sub{color:var(--mut);font-size:13px;margin-top:4px}
+.wrap{max-width:1000px;margin:0 auto;padding:24px 32px}
+input#q{width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--line);background:#fff;color:var(--fg);font-size:15px;margin-bottom:20px}
+.dom{color:var(--mut);text-transform:uppercase;font-size:12px;letter-spacing:.08em;margin:22px 0 8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:8px 0;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+.card h3{margin:0 0 4px;font-size:16px}.badge{font-size:12px;padding:2px 8px;border-radius:999px;color:#fff;font-weight:600}
+.mut{color:var(--mut);font-size:13px}
+.node{background:#f1f5f9;border-left:3px solid #cbd5e1;padding:8px 12px;margin:6px 0;border-radius:6px}
+.node .t{font-weight:600}.caut{color:#b45309;font-size:13px;margin:3px 0 3px 12px}
+.exit-done{border-left-color:#22c55e}.exit-esc{border-left-color:#f59e0b}
+table{width:100%;border-collapse:collapse;margin-top:8px}td,th{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);font-size:13px}
+.pill{font-size:12px;color:var(--mut)}
+.btn{display:inline-block;padding:8px 14px;border-radius:10px;border:1px solid var(--line);background:#fff;font-size:14px}
+.btn:hover{border-color:var(--acc);text-decoration:none}
+.btn.warn{color:#b91c1c;border-color:#fecaca}.btn.warn:hover{border-color:#b91c1c}
+.badge{display:inline-flex;align-items:center;gap:4px;line-height:1.4}
+.legend{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 20px}
+.legend-title{font-size:13px;color:var(--mut);margin-bottom:10px}
+.legend-item{display:flex;align-items:center;gap:10px;padding:5px 0}
+.legend-txt{font-size:13px;color:var(--fg)}
+@media(min-width:640px){.legend{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px}.legend-title{grid-column:1/-1}}
+.step{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:12px 0}
+.step h3{margin:0 0 6px;font-size:15px}
+code,pre{background:#f1f5f9;border-radius:6px;padding:1px 6px;font-size:13px}
+pre{padding:12px 14px;overflow:auto;line-height:1.5}
+</style></head><body><nav><span class="brand">🦫 OpsAxiom Hub</span><a href="../index.html" class="on">Skill 库</a><a href="../contribute.html">怎么贡献</a><a href="../governance.html">治理与投诉</a><a class="gh" href="https://github.com/hf4Academic/opsaxiom-registry">GitHub ↗</a></nav><header><h1>Pod CrashLoopBackOff 排查 <span class="badge" style="background:#3b82f6" title="在模拟环境里跑通了整套判断逻辑">🧪 仿真验证</span></h1><div class="sub"><code>k8s.workload.crashloop</code> · k8s/workload/crashloop · v0.1.0</div><div style="margin-top:10px"><a class="btn" href="../index.html">← 返回首页</a> <a class="btn warn" href="https://github.com/hf4Academic/opsaxiom-registry/issues/new?labels=report&title=%5Breport%5D%20k8s.workload.crashloop&body=%23%23%20被投诉%20Skill%0A%60k8s.workload.crashloop%60%0A%0A%23%23%20问题（误导%2F翻车%2F过时%2F安全隐患）%0A%0A%23%23%20环境与复现%0A">👎 投诉此 Skill</a></div></header><div class="wrap"><h2>决策树</h2><p class="mut">入口：<code>read_exit</code></p>
+<div class="node">
+<div class="t">[check] read_exit — 读取上次退出原因与退出码</div>
+<div class="mut">· 当 <code>exit_code == 137</code> → oom_or_killed</div>
+<div class="mut">· 当 <code>exit_code == 143</code> → sigterm_exit</div>
+<div class="mut">· 当 <code>exit_code == 1 or exit_code == 2</code> → read_app_logs</div>
+<div class="mut">· 当 <code>exit_code == 0</code> → premature_exit</div>
+<div class="mut">· 否则 → read_app_logs</div>
+<div class="caut">⚠ 退出码是第一线索：137=被 SIGKILL(常为 OOM)，143=SIGTERM，非0=应用自身错误，0=进程正常退出但 K8s 期望它常驻(命令写错)</div>
+<div class="caut">⚠ 看的是 lastState.terminated（上一次挂的原因），不是 currentState——CrashLoop 时容器正在重启间隙</div>
+</div>
+<div class="node">
+<div class="t">[check] oom_or_killed — 退出码 137——区分 OOM 还是被主动杀</div>
+<div class="mut">· 当 <code>any(lines[] matches &#x27;OOMKilled&#x27;)</code> → oom_exit</div>
+<div class="mut">· 否则 → liveness_kill_exit</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] oom_exit — 容器 OOMKilled(超过 memory limit)。方向：调高 resources.limits.memory，或排查应用内存泄漏。转 k8s/workload/oomkilled 深入。</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] liveness_kill_exit — 137 但非 OOM，多为 liveness probe 失败导致 kubelet 杀容器重启。检查 livenessProbe 配置是否过严(初始延迟太短/超时太紧)、应用启动是否慢于探针容忍。</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] sigterm_exit — 收到 SIGTERM 后退出(143)。检查是否被驱逐/滚动更新，或应用未正确处理优雅关闭。若非预期，查 events 看谁发的信号。</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] premature_exit — 进程退出码 0 但 Pod 期望常驻——通常是启动命令/entrypoint 执行完就结束了(如误把一次性脚本当常驻服务)。核对 command/args 与镜像 CMD。</div>
+</div>
+<div class="node">
+<div class="t">[check] read_app_logs — 读取应用日志定位崩溃原因</div>
+<div class="mut">· 当 <code>any(lines[] matches &#x27;panic|fatal|exception|traceback&#x27;)</code> → app_error_exit</div>
+<div class="mut">· 当 <code>any(lines[] matches &#x27;connection refused|timeout|no such host&#x27;)</code> → dependency_exit</div>
+<div class="mut">· 当 <code>any(lines[] matches &#x27;permission denied|config|not found&#x27;)</code> → config_exit</div>
+<div class="mut">· 否则 → escalate</div>
+<div class="caut">⚠ 关键是 --previous：崩溃的是上一个容器实例，不加 --previous 看到的是新实例(可能还没崩或没日志)</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] app_error_exit — 应用代码级错误(panic/exception)。日志已定位崩溃栈，交研发修复。运维侧确认非环境问题(配置/依赖)即可。</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] dependency_exit — 启动时连不上依赖(数据库/下游服务)导致崩溃。核对依赖服务是否就绪、Service/DNS 是否可解析、NetworkPolicy 是否放行。可能需要 initContainer 等待依赖或应用加重试。</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] config_exit — 配置/权限问题导致启动失败。核对 ConfigMap/Secret 是否挂载正确、文件路径、运行用户权限(securityContext)、只读文件系统限制。</div>
+</div>
+<div class="node exit-esc">
+<div class="t">[escalate] escalate — 打包升级：退出码与 reason、--previous 应用日志、events、resources 配置、探针配置。</div>
+</div><h2>实地验证（attestation）</h2><p class="mut">暂无实地验证记录。</p></div></body></html>

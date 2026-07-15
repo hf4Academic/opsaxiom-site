@@ -1,0 +1,72 @@
+<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>文件描述符泄漏排查</title><style>
+:root{--bg:#f8fafc;--card:#ffffff;--fg:#1e293b;--mut:#64748b;--acc:#2563eb;--line:#e2e8f0}
+*{box-sizing:border-box}body{margin:0;font:15px/1.6 -apple-system,Segoe UI,Roboto,'Noto Sans CJK SC',sans-serif;background:var(--bg);color:var(--fg)}
+a{color:var(--acc);text-decoration:none}a:hover{text-decoration:underline}
+nav{display:flex;gap:18px;align-items:center;padding:12px 32px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0}
+nav .brand{font-weight:700;color:var(--fg)}nav a{color:var(--mut);font-size:14px}nav a.on,nav a:hover{color:var(--acc)}
+nav .gh{margin-left:auto}
+header{padding:22px 32px;border-bottom:1px solid var(--line);background:#fff}
+h1{margin:0;font-size:22px}.sub{color:var(--mut);font-size:13px;margin-top:4px}
+.wrap{max-width:1000px;margin:0 auto;padding:24px 32px}
+input#q{width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--line);background:#fff;color:var(--fg);font-size:15px;margin-bottom:20px}
+.dom{color:var(--mut);text-transform:uppercase;font-size:12px;letter-spacing:.08em;margin:22px 0 8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:8px 0;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+.card h3{margin:0 0 4px;font-size:16px}.badge{font-size:12px;padding:2px 8px;border-radius:999px;color:#fff;font-weight:600}
+.mut{color:var(--mut);font-size:13px}
+.node{background:#f1f5f9;border-left:3px solid #cbd5e1;padding:8px 12px;margin:6px 0;border-radius:6px}
+.node .t{font-weight:600}.caut{color:#b45309;font-size:13px;margin:3px 0 3px 12px}
+.exit-done{border-left-color:#22c55e}.exit-esc{border-left-color:#f59e0b}
+table{width:100%;border-collapse:collapse;margin-top:8px}td,th{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);font-size:13px}
+.pill{font-size:12px;color:var(--mut)}
+.btn{display:inline-block;padding:8px 14px;border-radius:10px;border:1px solid var(--line);background:#fff;font-size:14px}
+.btn:hover{border-color:var(--acc);text-decoration:none}
+.btn.warn{color:#b91c1c;border-color:#fecaca}.btn.warn:hover{border-color:#b91c1c}
+.badge{display:inline-flex;align-items:center;gap:4px;line-height:1.4}
+.legend{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 20px}
+.legend-title{font-size:13px;color:var(--mut);margin-bottom:10px}
+.legend-item{display:flex;align-items:center;gap:10px;padding:5px 0}
+.legend-txt{font-size:13px;color:var(--fg)}
+@media(min-width:640px){.legend{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px}.legend-title{grid-column:1/-1}}
+.step{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:12px 0}
+.step h3{margin:0 0 6px;font-size:15px}
+code,pre{background:#f1f5f9;border-radius:6px;padding:1px 6px;font-size:13px}
+pre{padding:12px 14px;overflow:auto;line-height:1.5}
+</style></head><body><nav><span class="brand">🦫 OpsAxiom Hub</span><a href="../index.html" class="on">Skill 库</a><a href="../contribute.html">怎么贡献</a><a href="../governance.html">治理与投诉</a><a class="gh" href="https://github.com/hf4Academic/opsaxiom-registry">GitHub ↗</a></nav><header><h1>文件描述符泄漏排查 <span class="badge" style="background:#3b82f6" title="在模拟环境里跑通了整套判断逻辑">🧪 仿真验证</span></h1><div class="sub"><code>host.process.fd-leak</code> · host/process/fd-leak · v0.1.0</div><div style="margin-top:10px"><a class="btn" href="../index.html">← 返回首页</a> <a class="btn warn" href="https://github.com/hf4Academic/opsaxiom-registry/issues/new?labels=report&title=%5Breport%5D%20host.process.fd-leak&body=%23%23%20被投诉%20Skill%0A%60host.process.fd-leak%60%0A%0A%23%23%20问题（误导%2F翻车%2F过时%2F安全隐患）%0A%0A%23%23%20环境与复现%0A">👎 投诉此 Skill</a></div></header><div class="wrap"><h2>决策树</h2><p class="mut">入口：<code>scope_fd</code></p>
+<div class="node">
+<div class="t">[check] scope_fd — 判断是全局 fd 耗尽还是单进程超限</div>
+<div class="mut">· 当 <code>allocated &gt; max * 0.8</code> → rank_fd</div>
+<div class="mut">· 当 <code>allocated &lt;= max * 0.8</code> → rank_fd</div>
+<div class="mut">· 否则 → escalate</div>
+<div class="caut">⚠ 两种耗尽：系统级(/proc/sys/fs/file-max)和进程级(ulimit -n / LimitNOFILE)。报 Too many open files 时先分清是哪一种</div>
+<div class="caut">⚠ 容器里 ulimit 看的是容器的限制；systemd 服务看 LimitNOFILE 而非登录 shell 的 ulimit</div>
+</div>
+<div class="node">
+<div class="t">[check] rank_fd — 按打开 fd 数排序找出泄漏进程</div>
+<div class="mut">· 当 <code>rows[0].fd_count &gt; 10000</code> → classify_fd_type</div>
+<div class="mut">· 当 <code>rows[0].fd_count &gt; 1000</code> → classify_fd_type</div>
+<div class="mut">· 否则 → escalate</div>
+<div class="caut">⚠ fd 数高不一定是泄漏——高并发服务器本就持有大量连接。判断泄漏看趋势(是否只增不减)和 fd 类型分布</div>
+</div>
+<div class="node">
+<div class="t">[check] classify_fd_type — 分析泄漏 fd 的类型（socket / 文件 / pipe）</div>
+<div class="mut">· 当 <code>any(lines[] matches &#x27;socket&#x27;)</code> → socket_leak_exit</div>
+<div class="mut">· 当 <code>any(lines[] matches &#x27;deleted&#x27;)</code> → deleted_fd_exit</div>
+<div class="mut">· 当 <code>any(lines[] matches &#x27;pipe&#x27;)</code> → pipe_leak_exit</div>
+<div class="mut">· 否则 → file_leak_exit</div>
+<div class="caut">⚠ socket 泄漏最常见：连接用完没 close。看 socket 是否大量 CLOSE_WAIT(对端关了本端没关)</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] socket_leak_exit — 进程 {{pid}} 泄漏大量 socket fd。若伴随大量 CLOSE_WAIT，是应用没正确 close 连接(代码 bug)。缓解靠重启该进程，根治需研发修复连接生命周期管理。</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] deleted_fd_exit — 大量指向已删除文件的 fd(deleted)——进程持有已 rm 的文件句柄。这也是磁盘&#x27;删了不释放空间&#x27;的元凶。缓解靠重启/reload 该进程。</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] pipe_leak_exit — pipe/eventfd 泄漏，常见于异步框架或子进程管理 bug。交研发排查 pipe 创建后未关闭的路径。</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] file_leak_exit — 普通文件 fd 泄漏。核对应用是否循环打开文件不关闭(如日志/配置反复 open)。重启缓解，研发修复。</div>
+</div>
+<div class="node exit-esc">
+<div class="t">[escalate] escalate — 打包升级：file-nr、ulimit、按 fd 数排序的进程、Top 进程的 fd 类型分布。</div>
+</div><h2>实地验证（attestation）</h2><p class="mut">暂无实地验证记录。</p></div></body></html>

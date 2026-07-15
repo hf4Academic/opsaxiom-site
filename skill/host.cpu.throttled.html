@@ -1,0 +1,65 @@
+<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>容器/cgroup CPU 限流排查</title><style>
+:root{--bg:#f8fafc;--card:#ffffff;--fg:#1e293b;--mut:#64748b;--acc:#2563eb;--line:#e2e8f0}
+*{box-sizing:border-box}body{margin:0;font:15px/1.6 -apple-system,Segoe UI,Roboto,'Noto Sans CJK SC',sans-serif;background:var(--bg);color:var(--fg)}
+a{color:var(--acc);text-decoration:none}a:hover{text-decoration:underline}
+nav{display:flex;gap:18px;align-items:center;padding:12px 32px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0}
+nav .brand{font-weight:700;color:var(--fg)}nav a{color:var(--mut);font-size:14px}nav a.on,nav a:hover{color:var(--acc)}
+nav .gh{margin-left:auto}
+header{padding:22px 32px;border-bottom:1px solid var(--line);background:#fff}
+h1{margin:0;font-size:22px}.sub{color:var(--mut);font-size:13px;margin-top:4px}
+.wrap{max-width:1000px;margin:0 auto;padding:24px 32px}
+input#q{width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--line);background:#fff;color:var(--fg);font-size:15px;margin-bottom:20px}
+.dom{color:var(--mut);text-transform:uppercase;font-size:12px;letter-spacing:.08em;margin:22px 0 8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:8px 0;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+.card h3{margin:0 0 4px;font-size:16px}.badge{font-size:12px;padding:2px 8px;border-radius:999px;color:#fff;font-weight:600}
+.mut{color:var(--mut);font-size:13px}
+.node{background:#f1f5f9;border-left:3px solid #cbd5e1;padding:8px 12px;margin:6px 0;border-radius:6px}
+.node .t{font-weight:600}.caut{color:#b45309;font-size:13px;margin:3px 0 3px 12px}
+.exit-done{border-left-color:#22c55e}.exit-esc{border-left-color:#f59e0b}
+table{width:100%;border-collapse:collapse;margin-top:8px}td,th{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);font-size:13px}
+.pill{font-size:12px;color:var(--mut)}
+.btn{display:inline-block;padding:8px 14px;border-radius:10px;border:1px solid var(--line);background:#fff;font-size:14px}
+.btn:hover{border-color:var(--acc);text-decoration:none}
+.btn.warn{color:#b91c1c;border-color:#fecaca}.btn.warn:hover{border-color:#b91c1c}
+.badge{display:inline-flex;align-items:center;gap:4px;line-height:1.4}
+.legend{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 20px}
+.legend-title{font-size:13px;color:var(--mut);margin-bottom:10px}
+.legend-item{display:flex;align-items:center;gap:10px;padding:5px 0}
+.legend-txt{font-size:13px;color:var(--fg)}
+@media(min-width:640px){.legend{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px}.legend-title{grid-column:1/-1}}
+.step{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:12px 0}
+.step h3{margin:0 0 6px;font-size:15px}
+code,pre{background:#f1f5f9;border-radius:6px;padding:1px 6px;font-size:13px}
+pre{padding:12px 14px;overflow:auto;line-height:1.5}
+</style></head><body><nav><span class="brand">🦫 OpsAxiom Hub</span><a href="../index.html" class="on">Skill 库</a><a href="../contribute.html">怎么贡献</a><a href="../governance.html">治理与投诉</a><a class="gh" href="https://github.com/hf4Academic/opsaxiom-registry">GitHub ↗</a></nav><header><h1>容器/cgroup CPU 限流排查 <span class="badge" style="background:#3b82f6" title="在模拟环境里跑通了整套判断逻辑">🧪 仿真验证</span></h1><div class="sub"><code>host.cpu.throttled</code> · host/cpu/throttled · v0.1.0</div><div style="margin-top:10px"><a class="btn" href="../index.html">← 返回首页</a> <a class="btn warn" href="https://github.com/hf4Academic/opsaxiom-registry/issues/new?labels=report&title=%5Breport%5D%20host.cpu.throttled&body=%23%23%20被投诉%20Skill%0A%60host.cpu.throttled%60%0A%0A%23%23%20问题（误导%2F翻车%2F过时%2F安全隐患）%0A%0A%23%23%20环境与复现%0A">👎 投诉此 Skill</a></div></header><div class="wrap"><h2>决策树</h2><p class="mut">入口：<code>read_throttle</code></p>
+<div class="node">
+<div class="t">[check] read_throttle — 确认是否发生 CPU 限流及其强度</div>
+<div class="mut">· 当 <code>output.nr_throttled == 0</code> → done_not_throttled</div>
+<div class="mut">· 当 <code>output.throttle_ratio &gt;= 0.25</code> → check_quota</div>
+<div class="mut">· 当 <code>output.throttle_ratio &lt; 0.25</code> → done_mild</div>
+<div class="mut">· 否则 → check_quota</div>
+<div class="caut">⚠ cgroup v1/v2 文件路径不同：v2 是 /sys/fs/cgroup/cpu.stat，v1 是 /sys/fs/cgroup/cpu/cpu.stat，两条命令都给</div>
+<div class="caut">⚠ throttled_usec 高但 throttle_ratio 低，是长尾尖刺型限流——看 P99 延迟而非均值，别被平均数骗过</div>
+<div class="caut">⚠ nr_throttled==0 只说明这个 cgroup 没被限流，卡顿另有其因（转查 steal/负载/单核饱和）</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] done_not_throttled — 未发生 CPU 限流（nr_throttled=0）。卡顿/延迟另有根因，建议转查 CPU steal、系统负载或单核饱和。</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] done_mild — 轻度限流（限流周期占比 {{output.throttle_ratio}}，&lt;25%）。多为突发流量下的偶发尖刺，通常无需调整；若延迟 P99 敏感，可考虑开启 CFS burst 缓冲短时突发。</div>
+</div>
+<div class="node">
+<div class="t">[check] check_quota — 读取 CPU 配额以量化缺口</div>
+<div class="mut">· 当 <code>output.quota_cores &gt; 0</code> → done_severe</div>
+<div class="mut">· 当 <code>output.quota_cores == -1</code> → escalate</div>
+<div class="mut">· 否则 → escalate</div>
+<div class="caut">⚠ quota_cores=-1 表示无限制——若无限制却在限流，说明读错了 cgroup 层级（进程实际受更上层父 cgroup 约束），升级人工核对层级</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] done_severe — 严重限流（限流周期占比高）。当前配额约 {{output.quota_cores}} 核，明显不足。处置：K8s 下调大 Deployment 的 resources.limits.cpu（**不要直接改 cgroup 文件——kubele</div>
+</div>
+<div class="node exit-esc">
+<div class="t">[escalate] escalate — 打包升级：cpu.stat 全量（nr_periods/nr_throttled/throttled_usec）、cpu.max 配额、cgroup 版本与层级路径。</div>
+</div><h2>实地验证（attestation）</h2><table><tr><th>日期</th><th>结局</th><th>档位</th><th>环境</th><th>回滚</th><th>签名</th></tr>
+<tr><td>2026-07-14</td><td>resolved</td><td>navigator</td><td>debian unknown / 10-100 hosts</td><td>—</td><td class="pill">✔ ed25519</td></tr>
+</table></div></body></html>

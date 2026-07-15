@@ -1,0 +1,65 @@
+<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MySQL 主从延迟排查</title><style>
+:root{--bg:#f8fafc;--card:#ffffff;--fg:#1e293b;--mut:#64748b;--acc:#2563eb;--line:#e2e8f0}
+*{box-sizing:border-box}body{margin:0;font:15px/1.6 -apple-system,Segoe UI,Roboto,'Noto Sans CJK SC',sans-serif;background:var(--bg);color:var(--fg)}
+a{color:var(--acc);text-decoration:none}a:hover{text-decoration:underline}
+nav{display:flex;gap:18px;align-items:center;padding:12px 32px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0}
+nav .brand{font-weight:700;color:var(--fg)}nav a{color:var(--mut);font-size:14px}nav a.on,nav a:hover{color:var(--acc)}
+nav .gh{margin-left:auto}
+header{padding:22px 32px;border-bottom:1px solid var(--line);background:#fff}
+h1{margin:0;font-size:22px}.sub{color:var(--mut);font-size:13px;margin-top:4px}
+.wrap{max-width:1000px;margin:0 auto;padding:24px 32px}
+input#q{width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--line);background:#fff;color:var(--fg);font-size:15px;margin-bottom:20px}
+.dom{color:var(--mut);text-transform:uppercase;font-size:12px;letter-spacing:.08em;margin:22px 0 8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:8px 0;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+.card h3{margin:0 0 4px;font-size:16px}.badge{font-size:12px;padding:2px 8px;border-radius:999px;color:#fff;font-weight:600}
+.mut{color:var(--mut);font-size:13px}
+.node{background:#f1f5f9;border-left:3px solid #cbd5e1;padding:8px 12px;margin:6px 0;border-radius:6px}
+.node .t{font-weight:600}.caut{color:#b45309;font-size:13px;margin:3px 0 3px 12px}
+.exit-done{border-left-color:#22c55e}.exit-esc{border-left-color:#f59e0b}
+table{width:100%;border-collapse:collapse;margin-top:8px}td,th{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);font-size:13px}
+.pill{font-size:12px;color:var(--mut)}
+.btn{display:inline-block;padding:8px 14px;border-radius:10px;border:1px solid var(--line);background:#fff;font-size:14px}
+.btn:hover{border-color:var(--acc);text-decoration:none}
+.btn.warn{color:#b91c1c;border-color:#fecaca}.btn.warn:hover{border-color:#b91c1c}
+.badge{display:inline-flex;align-items:center;gap:4px;line-height:1.4}
+.legend{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 20px}
+.legend-title{font-size:13px;color:var(--mut);margin-bottom:10px}
+.legend-item{display:flex;align-items:center;gap:10px;padding:5px 0}
+.legend-txt{font-size:13px;color:var(--fg)}
+@media(min-width:640px){.legend{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px}.legend-title{grid-column:1/-1}}
+.step{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:12px 0}
+.step h3{margin:0 0 6px;font-size:15px}
+code,pre{background:#f1f5f9;border-radius:6px;padding:1px 6px;font-size:13px}
+pre{padding:12px 14px;overflow:auto;line-height:1.5}
+</style></head><body><nav><span class="brand">🦫 OpsAxiom Hub</span><a href="../index.html" class="on">Skill 库</a><a href="../contribute.html">怎么贡献</a><a href="../governance.html">治理与投诉</a><a class="gh" href="https://github.com/hf4Academic/opsaxiom-registry">GitHub ↗</a></nav><header><h1>MySQL 主从延迟排查 <span class="badge" style="background:#3b82f6" title="在模拟环境里跑通了整套判断逻辑">🧪 仿真验证</span></h1><div class="sub"><code>middleware.mysql.replication-lag</code> · middleware/mysql/replication-lag · v0.1.0</div><div style="margin-top:10px"><a class="btn" href="../index.html">← 返回首页</a> <a class="btn warn" href="https://github.com/hf4Academic/opsaxiom-registry/issues/new?labels=report&title=%5Breport%5D%20middleware.mysql.replication-lag&body=%23%23%20被投诉%20Skill%0A%60middleware.mysql.replication-lag%60%0A%0A%23%23%20问题（误导%2F翻车%2F过时%2F安全隐患）%0A%0A%23%23%20环境与复现%0A">👎 投诉此 Skill</a></div></header><div class="wrap"><h2>决策树</h2><p class="mut">入口：<code>read_lag</code></p>
+<div class="node">
+<div class="t">[check] read_lag — 读取延迟与复制线程状态</div>
+<div class="mut">· 当 <code>io_running == &#x27;No&#x27; or sql_running == &#x27;No&#x27;</code> → broken_exit</div>
+<div class="mut">· 当 <code>seconds_behind &gt; 60</code> → analyze_lag</div>
+<div class="mut">· 当 <code>seconds_behind &lt;= 60</code> → ok_exit</div>
+<div class="mut">· 否则 → escalate</div>
+<div class="caut">⚠ Seconds_Behind_Master 只在 SQL 线程运行时有意义；线程停了它显示 NULL——先确认两个线程都 Yes 再谈延迟</div>
+<div class="caut">⚠ 延迟大先分清是 IO 线程拉不过来还是 SQL 线程回放不过来，两者根因不同</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] broken_exit — 复制线程已停(IO 或 SQL 为 No)，不是延迟是中断。转 middleware/mysql/replication-broken 查 Last_Error。</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] ok_exit — 延迟 {{output.seconds_behind}}s 在可接受范围。若业务对一致性敏感，考虑读写分离时的延迟容忍或半同步。</div>
+</div>
+<div class="node">
+<div class="t">[check] analyze_lag — 判断延迟来源（回放慢 / 大事务 / 单线程瓶颈）</div>
+<div class="mut">· 当 <code>parallel_workers &lt;= 1</code> → single_thread_exit</div>
+<div class="mut">· 否则 → big_txn_exit</div>
+<div class="caut">⚠ 从库回放默认单线程，主库并发写入时从库追不上是常态。开并行复制(slave_parallel_workers)是主要解法</div>
+<div class="caut">⚠ replication_applier_status_by_worker 是 8.0 表；5.7 并行复制看 SHOW SLAVE STATUS 与 performance_schema 对应表名不同，或退回单线程假设</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] single_thread_exit — 从库单线程回放跟不上主库并发写入。方向：开启并行复制(基于 WRITESET 的 slave_parallel_type/workers)、检查从库硬件是否弱于主库、避免主库大批量写。</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] big_txn_exit — 已并行但仍延迟，疑似大事务阻塞回放或从库资源瓶颈。查是否有超大事务(binlog event 大)、从库 IO/CPU 是否打满(转 host 域)。</div>
+</div>
+<div class="node exit-esc">
+<div class="t">[escalate] escalate — 打包升级：SHOW SLAVE STATUS 全量、并行 worker 状态、从库资源、主库写入速率。</div>
+</div><h2>实地验证（attestation）</h2><p class="mut">暂无实地验证记录。</p></div></body></html>

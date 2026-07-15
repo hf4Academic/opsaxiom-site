@@ -1,0 +1,74 @@
+<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>主机 DNS 解析失败排查</title><style>
+:root{--bg:#f8fafc;--card:#ffffff;--fg:#1e293b;--mut:#64748b;--acc:#2563eb;--line:#e2e8f0}
+*{box-sizing:border-box}body{margin:0;font:15px/1.6 -apple-system,Segoe UI,Roboto,'Noto Sans CJK SC',sans-serif;background:var(--bg);color:var(--fg)}
+a{color:var(--acc);text-decoration:none}a:hover{text-decoration:underline}
+nav{display:flex;gap:18px;align-items:center;padding:12px 32px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0}
+nav .brand{font-weight:700;color:var(--fg)}nav a{color:var(--mut);font-size:14px}nav a.on,nav a:hover{color:var(--acc)}
+nav .gh{margin-left:auto}
+header{padding:22px 32px;border-bottom:1px solid var(--line);background:#fff}
+h1{margin:0;font-size:22px}.sub{color:var(--mut);font-size:13px;margin-top:4px}
+.wrap{max-width:1000px;margin:0 auto;padding:24px 32px}
+input#q{width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--line);background:#fff;color:var(--fg);font-size:15px;margin-bottom:20px}
+.dom{color:var(--mut);text-transform:uppercase;font-size:12px;letter-spacing:.08em;margin:22px 0 8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:8px 0;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+.card h3{margin:0 0 4px;font-size:16px}.badge{font-size:12px;padding:2px 8px;border-radius:999px;color:#fff;font-weight:600}
+.mut{color:var(--mut);font-size:13px}
+.node{background:#f1f5f9;border-left:3px solid #cbd5e1;padding:8px 12px;margin:6px 0;border-radius:6px}
+.node .t{font-weight:600}.caut{color:#b45309;font-size:13px;margin:3px 0 3px 12px}
+.exit-done{border-left-color:#22c55e}.exit-esc{border-left-color:#f59e0b}
+table{width:100%;border-collapse:collapse;margin-top:8px}td,th{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);font-size:13px}
+.pill{font-size:12px;color:var(--mut)}
+.btn{display:inline-block;padding:8px 14px;border-radius:10px;border:1px solid var(--line);background:#fff;font-size:14px}
+.btn:hover{border-color:var(--acc);text-decoration:none}
+.btn.warn{color:#b91c1c;border-color:#fecaca}.btn.warn:hover{border-color:#b91c1c}
+.badge{display:inline-flex;align-items:center;gap:4px;line-height:1.4}
+.legend{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 20px}
+.legend-title{font-size:13px;color:var(--mut);margin-bottom:10px}
+.legend-item{display:flex;align-items:center;gap:10px;padding:5px 0}
+.legend-txt{font-size:13px;color:var(--fg)}
+@media(min-width:640px){.legend{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px}.legend-title{grid-column:1/-1}}
+.step{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:12px 0}
+.step h3{margin:0 0 6px;font-size:15px}
+code,pre{background:#f1f5f9;border-radius:6px;padding:1px 6px;font-size:13px}
+pre{padding:12px 14px;overflow:auto;line-height:1.5}
+</style></head><body><nav><span class="brand">🦫 OpsAxiom Hub</span><a href="../index.html" class="on">Skill 库</a><a href="../contribute.html">怎么贡献</a><a href="../governance.html">治理与投诉</a><a class="gh" href="https://github.com/hf4Academic/opsaxiom-registry">GitHub ↗</a></nav><header><h1>主机 DNS 解析失败排查 <span class="badge" style="background:#3b82f6" title="在模拟环境里跑通了整套判断逻辑">🧪 仿真验证</span></h1><div class="sub"><code>host.network-stack.dns-resolve-fail</code> · host/network-stack/dns-resolve-fail · v0.1.0</div><div style="margin-top:10px"><a class="btn" href="../index.html">← 返回首页</a> <a class="btn warn" href="https://github.com/hf4Academic/opsaxiom-registry/issues/new?labels=report&title=%5Breport%5D%20host.network-stack.dns-resolve-fail&body=%23%23%20被投诉%20Skill%0A%60host.network-stack.dns-resolve-fail%60%0A%0A%23%23%20问题（误导%2F翻车%2F过时%2F安全隐患）%0A%0A%23%23%20环境与复现%0A">👎 投诉此 Skill</a></div></header><div class="wrap"><h2>决策树</h2><p class="mut">入口：<code>reproduce</code></p>
+<div class="node">
+<div class="t">[check] reproduce — 复现并区分解析层次</div>
+<div class="mut">· 当 <code>any(lines[] matches &#x27;GETENT_FAIL&#x27;)</code> → check_server</div>
+<div class="mut">· 当 <code>not any(lines[] matches &#x27;GETENT_FAIL&#x27;)</code> → nsswitch_exit</div>
+<div class="mut">· 否则 → check_server</div>
+<div class="caut">⚠ getent 走完整 nsswitch(含 /etc/hosts、mdns 等)，nslookup/dig 只问 DNS。两者结果不同能定位是 DNS 还是 hosts/缓存问题</div>
+<div class="caut">⚠ 先确认是全解析失败还是仅某域名：某个域名解析不了 vs 所有域名都不行，根因完全不同</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] nsswitch_exit — getent 能解析但应用报错，可能是应用自带 DNS 缓存/解析库、或 /etc/hosts 有旧记录覆盖。核对 hosts 文件与应用侧缓存。</div>
+</div>
+<div class="node">
+<div class="t">[check] check_server — 检查配置的 DNS 服务器是否可达可用</div>
+<div class="mut">· 当 <code>any(lines[] matches &#x27;100% packet loss|unreachable&#x27;)</code> → server_unreachable_exit</div>
+<div class="mut">· 当 <code>any(lines[] matches &#x27;SERVFAIL|REFUSED|timed out&#x27;)</code> → server_bad_exit</div>
+<div class="mut">· 当 <code>any(lines[] matches &#x27;NXDOMAIN&#x27;)</code> → nxdomain_exit</div>
+<div class="mut">· 否则 → check_resolv_sanity</div>
+<div class="caut">⚠ systemd-resolved 环境下 resolv.conf 常指向 127.0.0.53，真正的上游要看 resolvectl status</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] server_unreachable_exit — 配置的 DNS 服务器不可达(ping 不通)。核对网络连通性(可能是防火墙/路由问题，转 network 域)、或更换为可用 DNS。</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] server_bad_exit — DNS 服务器返回 SERVFAIL/REFUSED/超时——服务器本身有问题或不允许本机查询。联系 DNS 管理员，或临时切换上游 DNS 验证。</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] nxdomain_exit — DNS 明确返回 NXDOMAIN(域名不存在)。这是权威应答：核对域名拼写、该记录是否真的存在、是否内部域名但用了外部 DNS。</div>
+</div>
+<div class="node">
+<div class="t">[check] check_resolv_sanity — 检查 resolv.conf 合理性</div>
+<div class="mut">· 当 <code>not any(lines[] matches &#x27;nameserver&#x27;)</code> → no_nameserver_exit</div>
+<div class="mut">· 否则 → escalate</div>
+<div class="caut">⚠ resolv.conf 可能被 NetworkManager/systemd-resolved/dhclient 动态覆盖——改了不生效多半是被托管重写了</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] no_nameserver_exit — resolv.conf 里没有有效 nameserver。核对是谁管理它(NetworkManager/resolved/dhcp)，从源头修复而非直接改文件(会被覆盖)。</div>
+</div>
+<div class="node exit-esc">
+<div class="t">[escalate] escalate — 打包升级：resolv.conf、nsswitch hosts 行、getent/nslookup 结果、上游 DNS 连通性。</div>
+</div><h2>实地验证（attestation）</h2><p class="mut">暂无实地验证记录。</p></div></body></html>

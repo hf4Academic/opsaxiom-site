@@ -1,0 +1,56 @@
+<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>告警误报排查（阈值/抖动）</title><style>
+:root{--bg:#f8fafc;--card:#ffffff;--fg:#1e293b;--mut:#64748b;--acc:#2563eb;--line:#e2e8f0}
+*{box-sizing:border-box}body{margin:0;font:15px/1.6 -apple-system,Segoe UI,Roboto,'Noto Sans CJK SC',sans-serif;background:var(--bg);color:var(--fg)}
+a{color:var(--acc);text-decoration:none}a:hover{text-decoration:underline}
+nav{display:flex;gap:18px;align-items:center;padding:12px 32px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0}
+nav .brand{font-weight:700;color:var(--fg)}nav a{color:var(--mut);font-size:14px}nav a.on,nav a:hover{color:var(--acc)}
+nav .gh{margin-left:auto}
+header{padding:22px 32px;border-bottom:1px solid var(--line);background:#fff}
+h1{margin:0;font-size:22px}.sub{color:var(--mut);font-size:13px;margin-top:4px}
+.wrap{max-width:1000px;margin:0 auto;padding:24px 32px}
+input#q{width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--line);background:#fff;color:var(--fg);font-size:15px;margin-bottom:20px}
+.dom{color:var(--mut);text-transform:uppercase;font-size:12px;letter-spacing:.08em;margin:22px 0 8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:8px 0;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+.card h3{margin:0 0 4px;font-size:16px}.badge{font-size:12px;padding:2px 8px;border-radius:999px;color:#fff;font-weight:600}
+.mut{color:var(--mut);font-size:13px}
+.node{background:#f1f5f9;border-left:3px solid #cbd5e1;padding:8px 12px;margin:6px 0;border-radius:6px}
+.node .t{font-weight:600}.caut{color:#b45309;font-size:13px;margin:3px 0 3px 12px}
+.exit-done{border-left-color:#22c55e}.exit-esc{border-left-color:#f59e0b}
+table{width:100%;border-collapse:collapse;margin-top:8px}td,th{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);font-size:13px}
+.pill{font-size:12px;color:var(--mut)}
+.btn{display:inline-block;padding:8px 14px;border-radius:10px;border:1px solid var(--line);background:#fff;font-size:14px}
+.btn:hover{border-color:var(--acc);text-decoration:none}
+.btn.warn{color:#b91c1c;border-color:#fecaca}.btn.warn:hover{border-color:#b91c1c}
+.badge{display:inline-flex;align-items:center;gap:4px;line-height:1.4}
+.legend{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 20px}
+.legend-title{font-size:13px;color:var(--mut);margin-bottom:10px}
+.legend-item{display:flex;align-items:center;gap:10px;padding:5px 0}
+.legend-txt{font-size:13px;color:var(--fg)}
+@media(min-width:640px){.legend{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px}.legend-title{grid-column:1/-1}}
+.step{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:12px 0}
+.step h3{margin:0 0 6px;font-size:15px}
+code,pre{background:#f1f5f9;border-radius:6px;padding:1px 6px;font-size:13px}
+pre{padding:12px 14px;overflow:auto;line-height:1.5}
+</style></head><body><nav><span class="brand">🦫 OpsAxiom Hub</span><a href="../index.html" class="on">Skill 库</a><a href="../contribute.html">怎么贡献</a><a href="../governance.html">治理与投诉</a><a class="gh" href="https://github.com/hf4Academic/opsaxiom-registry">GitHub ↗</a></nav><header><h1>告警误报排查（阈值/抖动） <span class="badge" style="background:#3b82f6" title="在模拟环境里跑通了整套判断逻辑">🧪 仿真验证</span></h1><div class="sub"><code>obs.alerting.false-positive</code> · obs/alerting/false-positive · v0.1.0</div><div style="margin-top:10px"><a class="btn" href="../index.html">← 返回首页</a> <a class="btn warn" href="https://github.com/hf4Academic/opsaxiom-registry/issues/new?labels=report&title=%5Breport%5D%20obs.alerting.false-positive&body=%23%23%20被投诉%20Skill%0A%60obs.alerting.false-positive%60%0A%0A%23%23%20问题（误导%2F翻车%2F过时%2F安全隐患）%0A%0A%23%23%20环境与复现%0A">👎 投诉此 Skill</a></div></header><div class="wrap"><h2>决策树</h2><p class="mut">入口：<code>check_real</code></p>
+<div class="node">
+<div class="t">[check] check_real — 判断告警是否反映真实越界</div>
+<div class="mut">· 当 <code>flapping_count &gt; 5</code> → flapping_exit</div>
+<div class="mut">· 当 <code>firing &gt; 0 and metric_value &lt; threshold</code> → threshold_exit</div>
+<div class="mut">· 当 <code>firing &gt; 0</code> → real_exit</div>
+<div class="mut">· 否则 → escalate</div>
+<div class="caut">⚠ 别把&#x27;真问题&#x27;当误报关掉——先看当前指标值 vs 阈值：值确实没越界才叫误报，越界了就是真告警</div>
+<div class="caut">⚠ 抖动(flapping)不是误报而是配置问题：指标在阈值附近反复穿越→加 for 持续时间或滞回(hysteresis)，而非删告警</div>
+<div class="caut">⚠ 误报的典型来源：静态阈值不适应业务波动、聚合窗口太短、单点采样毛刺</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] threshold_exit — 当前指标值未越界却在 firing，属阈值/规则不当误报。方向：改用更贴合的阈值(如分时段/基线偏离)、拉长评估窗口、或换成比率类而非绝对值类判据。调整前确认历史上它是否漏过真事件。</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] flapping_exit — 告警在阈值附近反复抖动({{output.flapping_count}} 次)，是抖动而非误报。方向：加 `for:` 持续时间(如 5m)要求持续越界才触发、引入滞回(触发阈≠恢复阈)、或对指标做适度平滑。不要简单删告警。</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] real_exit — 指标确实越界，这不是误报而是真问题。方向：按该告警对应的处置 Skill 排查根因，别急着调阈值把真信号屏蔽掉。</div>
+</div>
+<div class="node exit-esc">
+<div class="t">[escalate] escalate — 打包升级：告警规则表达式、当前指标值、阈值、for 配置、近段触发/恢复历史，供人工判定误报性质。</div>
+</div><h2>实地验证（attestation）</h2><p class="mut">暂无实地验证记录。</p></div></body></html>

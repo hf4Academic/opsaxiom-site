@@ -1,0 +1,60 @@
+<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>异常登录排查</title><style>
+:root{--bg:#f8fafc;--card:#ffffff;--fg:#1e293b;--mut:#64748b;--acc:#2563eb;--line:#e2e8f0}
+*{box-sizing:border-box}body{margin:0;font:15px/1.6 -apple-system,Segoe UI,Roboto,'Noto Sans CJK SC',sans-serif;background:var(--bg);color:var(--fg)}
+a{color:var(--acc);text-decoration:none}a:hover{text-decoration:underline}
+nav{display:flex;gap:18px;align-items:center;padding:12px 32px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0}
+nav .brand{font-weight:700;color:var(--fg)}nav a{color:var(--mut);font-size:14px}nav a.on,nav a:hover{color:var(--acc)}
+nav .gh{margin-left:auto}
+header{padding:22px 32px;border-bottom:1px solid var(--line);background:#fff}
+h1{margin:0;font-size:22px}.sub{color:var(--mut);font-size:13px;margin-top:4px}
+.wrap{max-width:1000px;margin:0 auto;padding:24px 32px}
+input#q{width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--line);background:#fff;color:var(--fg);font-size:15px;margin-bottom:20px}
+.dom{color:var(--mut);text-transform:uppercase;font-size:12px;letter-spacing:.08em;margin:22px 0 8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:8px 0;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+.card h3{margin:0 0 4px;font-size:16px}.badge{font-size:12px;padding:2px 8px;border-radius:999px;color:#fff;font-weight:600}
+.mut{color:var(--mut);font-size:13px}
+.node{background:#f1f5f9;border-left:3px solid #cbd5e1;padding:8px 12px;margin:6px 0;border-radius:6px}
+.node .t{font-weight:600}.caut{color:#b45309;font-size:13px;margin:3px 0 3px 12px}
+.exit-done{border-left-color:#22c55e}.exit-esc{border-left-color:#f59e0b}
+table{width:100%;border-collapse:collapse;margin-top:8px}td,th{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);font-size:13px}
+.pill{font-size:12px;color:var(--mut)}
+.btn{display:inline-block;padding:8px 14px;border-radius:10px;border:1px solid var(--line);background:#fff;font-size:14px}
+.btn:hover{border-color:var(--acc);text-decoration:none}
+.btn.warn{color:#b91c1c;border-color:#fecaca}.btn.warn:hover{border-color:#b91c1c}
+.badge{display:inline-flex;align-items:center;gap:4px;line-height:1.4}
+.legend{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 20px}
+.legend-title{font-size:13px;color:var(--mut);margin-bottom:10px}
+.legend-item{display:flex;align-items:center;gap:10px;padding:5px 0}
+.legend-txt{font-size:13px;color:var(--fg)}
+@media(min-width:640px){.legend{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px}.legend-title{grid-column:1/-1}}
+.step{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:12px 0}
+.step h3{margin:0 0 6px;font-size:15px}
+code,pre{background:#f1f5f9;border-radius:6px;padding:1px 6px;font-size:13px}
+pre{padding:12px 14px;overflow:auto;line-height:1.5}
+</style></head><body><nav><span class="brand">🦫 OpsAxiom Hub</span><a href="../index.html" class="on">Skill 库</a><a href="../contribute.html">怎么贡献</a><a href="../governance.html">治理与投诉</a><a class="gh" href="https://github.com/hf4Academic/opsaxiom-registry">GitHub ↗</a></nav><header><h1>异常登录排查 <span class="badge" style="background:#3b82f6" title="在模拟环境里跑通了整套判断逻辑">🧪 仿真验证</span></h1><div class="sub"><code>sec.access.abnormal-login</code> · sec/access/abnormal-login · v0.1.0</div><div style="margin-top:10px"><a class="btn" href="../index.html">← 返回首页</a> <a class="btn warn" href="https://github.com/hf4Academic/opsaxiom-registry/issues/new?labels=report&title=%5Breport%5D%20sec.access.abnormal-login&body=%23%23%20被投诉%20Skill%0A%60sec.access.abnormal-login%60%0A%0A%23%23%20问题（误导%2F翻车%2F过时%2F安全隐患）%0A%0A%23%23%20环境与复现%0A">👎 投诉此 Skill</a></div></header><div class="wrap"><h2>决策树</h2><p class="mut">入口：<code>scan_logins</code></p>
+<div class="node">
+<div class="t">[check] scan_logins — 扫描成功登录的可疑特征</div>
+<div class="mut">· 当 <code>root_login_count &gt; 0 and new_ip_count &gt; 0</code> → root_newip_exit</div>
+<div class="mut">· 当 <code>new_ip_count &gt; 0</code> → newip_exit</div>
+<div class="mut">· 当 <code>offhours_login_count &gt; 0</code> → offhours_exit</div>
+<div class="mut">· 当 <code>accepted_count &gt; 0</code> → normal_exit</div>
+<div class="mut">· 否则 → escalate</div>
+<div class="caut">⚠ 异常登录看三个维度：来源 IP 是否首次出现、是否直接 root 登录、是否非工作时段——单看登录成功数无意义</div>
+<div class="caut">⚠ 只诊断不封禁：确认可疑后走应急响应流程(改密/查横向移动/取证)，别在排查阶段直接改防火墙或杀会话踩到正常运维</div>
+<div class="caut">⚠ 先区分是运维正常操作还是入侵：跟机主/值班核对是不是本人，避免把跳板机新 IP 当攻击</div>
+</div>
+<div class="node exit-esc">
+<div class="t">[escalate] root_newip_exit — 高危：检测到 root 从新 IP 直接登录成功。疑似凭据泄露或入侵。立即：与责任人核实是否本人操作；若非，按应急响应处置(隔离会话、改密、查该 IP 的横向移动与落地文件、保留 /var/log 取证)。已生成疑似入侵处置清单。</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] newip_exit — 检测到来自新 IP 的成功登录({{output.new_ip_count}} 个新源)。方向：与责任人核实来源是否可信(新办公网/新跳板机 vs 陌生地址)；确认非本人则按可疑登录升级。记录源 IP、账号、时间。</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] offhours_exit — 存在非工作时段登录。多数是值班/自动化任务，但需与登录账号责任人核对确属预期。若无法解释，按可疑处理并结合来源 IP 进一步判断。</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] normal_exit — 成功登录未见新 IP/root 直登/异常时段特征，暂无明显异常。仍可留存本次基线(常见来源 IP 集合)供后续对比。</div>
+</div>
+<div class="node exit-esc">
+<div class="t">[escalate] escalate — 打包升级：窗口内成功登录数、去重来源 IP、新 IP 列表、root 登录次数、非工作时段登录，供安全团队研判。</div>
+</div><h2>实地验证（attestation）</h2><p class="mut">暂无实地验证记录。</p></div></body></html>

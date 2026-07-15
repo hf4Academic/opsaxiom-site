@@ -1,0 +1,59 @@
+<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>采集目标 down（exporter 抓不到）排查</title><style>
+:root{--bg:#f8fafc;--card:#ffffff;--fg:#1e293b;--mut:#64748b;--acc:#2563eb;--line:#e2e8f0}
+*{box-sizing:border-box}body{margin:0;font:15px/1.6 -apple-system,Segoe UI,Roboto,'Noto Sans CJK SC',sans-serif;background:var(--bg);color:var(--fg)}
+a{color:var(--acc);text-decoration:none}a:hover{text-decoration:underline}
+nav{display:flex;gap:18px;align-items:center;padding:12px 32px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0}
+nav .brand{font-weight:700;color:var(--fg)}nav a{color:var(--mut);font-size:14px}nav a.on,nav a:hover{color:var(--acc)}
+nav .gh{margin-left:auto}
+header{padding:22px 32px;border-bottom:1px solid var(--line);background:#fff}
+h1{margin:0;font-size:22px}.sub{color:var(--mut);font-size:13px;margin-top:4px}
+.wrap{max-width:1000px;margin:0 auto;padding:24px 32px}
+input#q{width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--line);background:#fff;color:var(--fg);font-size:15px;margin-bottom:20px}
+.dom{color:var(--mut);text-transform:uppercase;font-size:12px;letter-spacing:.08em;margin:22px 0 8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:8px 0;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+.card h3{margin:0 0 4px;font-size:16px}.badge{font-size:12px;padding:2px 8px;border-radius:999px;color:#fff;font-weight:600}
+.mut{color:var(--mut);font-size:13px}
+.node{background:#f1f5f9;border-left:3px solid #cbd5e1;padding:8px 12px;margin:6px 0;border-radius:6px}
+.node .t{font-weight:600}.caut{color:#b45309;font-size:13px;margin:3px 0 3px 12px}
+.exit-done{border-left-color:#22c55e}.exit-esc{border-left-color:#f59e0b}
+table{width:100%;border-collapse:collapse;margin-top:8px}td,th{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);font-size:13px}
+.pill{font-size:12px;color:var(--mut)}
+.btn{display:inline-block;padding:8px 14px;border-radius:10px;border:1px solid var(--line);background:#fff;font-size:14px}
+.btn:hover{border-color:var(--acc);text-decoration:none}
+.btn.warn{color:#b91c1c;border-color:#fecaca}.btn.warn:hover{border-color:#b91c1c}
+.badge{display:inline-flex;align-items:center;gap:4px;line-height:1.4}
+.legend{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 20px}
+.legend-title{font-size:13px;color:var(--mut);margin-bottom:10px}
+.legend-item{display:flex;align-items:center;gap:10px;padding:5px 0}
+.legend-txt{font-size:13px;color:var(--fg)}
+@media(min-width:640px){.legend{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px}.legend-title{grid-column:1/-1}}
+.step{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:12px 0}
+.step h3{margin:0 0 6px;font-size:15px}
+code,pre{background:#f1f5f9;border-radius:6px;padding:1px 6px;font-size:13px}
+pre{padding:12px 14px;overflow:auto;line-height:1.5}
+</style></head><body><nav><span class="brand">🦫 OpsAxiom Hub</span><a href="../index.html" class="on">Skill 库</a><a href="../contribute.html">怎么贡献</a><a href="../governance.html">治理与投诉</a><a class="gh" href="https://github.com/hf4Academic/opsaxiom-registry">GitHub ↗</a></nav><header><h1>采集目标 down（exporter 抓不到）排查 <span class="badge" style="background:#3b82f6" title="在模拟环境里跑通了整套判断逻辑">🧪 仿真验证</span></h1><div class="sub"><code>obs.metrics.target-down</code> · obs/metrics/target-down · v0.1.0</div><div style="margin-top:10px"><a class="btn" href="../index.html">← 返回首页</a> <a class="btn warn" href="https://github.com/hf4Academic/opsaxiom-registry/issues/new?labels=report&title=%5Breport%5D%20obs.metrics.target-down&body=%23%23%20被投诉%20Skill%0A%60obs.metrics.target-down%60%0A%0A%23%23%20问题（误导%2F翻车%2F过时%2F安全隐患）%0A%0A%23%23%20环境与复现%0A">👎 投诉此 Skill</a></div></header><div class="wrap"><h2>决策树</h2><p class="mut">入口：<code>read_target</code></p>
+<div class="node">
+<div class="t">[check] read_target — 读取 target 状态与最近抓取错误</div>
+<div class="mut">· 当 <code>up &gt; 0</code> → up_exit</div>
+<div class="mut">· 当 <code>last_error_conn_refused &gt; 0</code> → refused_exit</div>
+<div class="mut">· 当 <code>last_error_timeout &gt; 0</code> → timeout_exit</div>
+<div class="mut">· 当 <code>up == 0</code> → other_error_exit</div>
+<div class="mut">· 否则 → escalate</div>
+<div class="caut">⚠ target down 先看 Prometheus 自己记录的 lastError——connection refused / timeout / 401 / no such host，错误类型直接指向根因，别盲猜</div>
+<div class="caut">⚠ 别只在被抓端排查：也可能是 Prometheus 侧网络策略/防火墙不让它到 exporter，两端都要看</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] up_exit — 该 target 当前 up，可能是瞬时抓取失败已恢复。观察是否周期性 down(GC 停顿/exporter 偶发卡)，必要时调 scrape_timeout。</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] refused_exit — 抓取被拒(connection refused)，多为 exporter 进程没在跑或端口/监听地址不对。方向：登目标机确认 exporter 进程与监听端口(ss -ltnp)、防火墙/安全组是否放行 Prometheus 源、容器是否暴</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] timeout_exit — 抓取超时(timeout)，exporter 在但响应慢或网络拥塞。方向：手动 curl exporter 端点看耗时、检查目标机负载(转 host/compute/load-high)、exporter 采集项过多导致单次抓取慢则拆分或调</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] other_error_exit — 抓取失败但非拒绝/超时(如 401/403 鉴权、TLS 握手失败、no such host)。方向：核对 scrape_config 的鉴权/TLS/目标地址解析，按 lastError 原文定位。</div>
+</div>
+<div class="node exit-esc">
+<div class="t">[escalate] escalate — 打包升级：target 的 up 值、lastError 原文、scrape_config、目标机 exporter 进程与端口状态。</div>
+</div><h2>实地验证（attestation）</h2><p class="mut">暂无实地验证记录。</p></div></body></html>

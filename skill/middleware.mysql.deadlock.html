@@ -29,6 +29,14 @@ table{width:100%;border-collapse:collapse;margin-top:8px}td,th{text-align:left;p
 @media(min-width:640px){.legend{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px}.legend-title{grid-column:1/-1}}
 .step{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:12px 0}
 .step h3{margin:0 0 6px;font-size:15px}
+.step.ch{border-color:var(--acc);box-shadow:0 1px 3px rgba(37,99,235,.08)}
+details.foldy{background:#f8fafc;border:1px solid var(--line);border-radius:10px;padding:2px 14px;margin:10px 0}
+details.foldy>summary{cursor:pointer;font-size:14px;font-weight:600;padding:11px 0;list-style:none;color:var(--acc)}
+details.foldy>summary::-webkit-details-marker{display:none}
+details.foldy>summary::before{content:"▸  "}
+details.foldy[open]>summary::before{content:"▾  "}
+details.foldy .foldbody{padding:2px 0 10px}
+details.foldy .foldbody h4{margin:14px 0 4px;font-size:14px}
 code,pre{background:#f1f5f9;border-radius:6px;padding:1px 6px;font-size:13px}
 pre{padding:12px 14px;overflow:auto;line-height:1.5}
 </style></head><body><nav><span class="brand">🦫 OpsAxiom Hub</span><a href="../index.html" class="on">Skill 库</a><a href="../contribute.html">怎么贡献</a><a href="../governance.html">治理与投诉</a><a class="gh" href="https://github.com/hf4Academic/opsaxiom-registry">GitHub ↗</a></nav><header><h1>MySQL 死锁 / 锁等待超时排查 <span class="badge" style="background:#3b82f6" title="在模拟环境里跑通了整套判断逻辑">🧪 仿真验证</span></h1><div class="sub"><code>middleware.mysql.deadlock</code> · middleware/mysql/deadlock · v0.1.0</div><div style="margin-top:10px"><a class="btn" href="../index.html">← 返回首页</a> <a class="btn warn" href="https://github.com/hf4Academic/opsaxiom-registry/issues/new?labels=report&title=%5Breport%5D%20middleware.mysql.deadlock&body=%23%23%20被投诉%20Skill%0A%60middleware.mysql.deadlock%60%0A%0A%23%23%20问题（误导%2F翻车%2F过时%2F安全隐患）%0A%0A%23%23%20环境与复现%0A">👎 投诉此 Skill</a></div></header><div class="wrap"><h2>决策树</h2><p class="mut">入口：<code>check_waits</code></p>

@@ -1,0 +1,62 @@
+<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Deployment 回滚到上一版本</title><style>
+:root{--bg:#f8fafc;--card:#ffffff;--fg:#1e293b;--mut:#64748b;--acc:#2563eb;--line:#e2e8f0}
+*{box-sizing:border-box}body{margin:0;font:15px/1.6 -apple-system,Segoe UI,Roboto,'Noto Sans CJK SC',sans-serif;background:var(--bg);color:var(--fg)}
+a{color:var(--acc);text-decoration:none}a:hover{text-decoration:underline}
+nav{display:flex;gap:18px;align-items:center;padding:12px 32px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0}
+nav .brand{font-weight:700;color:var(--fg)}nav a{color:var(--mut);font-size:14px}nav a.on,nav a:hover{color:var(--acc)}
+nav .gh{margin-left:auto}
+header{padding:22px 32px;border-bottom:1px solid var(--line);background:#fff}
+h1{margin:0;font-size:22px}.sub{color:var(--mut);font-size:13px;margin-top:4px}
+.wrap{max-width:1000px;margin:0 auto;padding:24px 32px}
+input#q{width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--line);background:#fff;color:var(--fg);font-size:15px;margin-bottom:20px}
+.dom{color:var(--mut);text-transform:uppercase;font-size:12px;letter-spacing:.08em;margin:22px 0 8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:8px 0;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+.card h3{margin:0 0 4px;font-size:16px}.badge{font-size:12px;padding:2px 8px;border-radius:999px;color:#fff;font-weight:600}
+.mut{color:var(--mut);font-size:13px}
+.node{background:#f1f5f9;border-left:3px solid #cbd5e1;padding:8px 12px;margin:6px 0;border-radius:6px}
+.node .t{font-weight:600}.caut{color:#b45309;font-size:13px;margin:3px 0 3px 12px}
+.exit-done{border-left-color:#22c55e}.exit-esc{border-left-color:#f59e0b}
+table{width:100%;border-collapse:collapse;margin-top:8px}td,th{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);font-size:13px}
+.pill{font-size:12px;color:var(--mut)}
+.btn{display:inline-block;padding:8px 14px;border-radius:10px;border:1px solid var(--line);background:#fff;font-size:14px}
+.btn:hover{border-color:var(--acc);text-decoration:none}
+.btn.warn{color:#b91c1c;border-color:#fecaca}.btn.warn:hover{border-color:#b91c1c}
+.badge{display:inline-flex;align-items:center;gap:4px;line-height:1.4}
+.legend{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 20px}
+.legend-title{font-size:13px;color:var(--mut);margin-bottom:10px}
+.legend-item{display:flex;align-items:center;gap:10px;padding:5px 0}
+.legend-txt{font-size:13px;color:var(--fg)}
+@media(min-width:640px){.legend{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px}.legend-title{grid-column:1/-1}}
+.step{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:12px 0}
+.step h3{margin:0 0 6px;font-size:15px}
+code,pre{background:#f1f5f9;border-radius:6px;padding:1px 6px;font-size:13px}
+pre{padding:12px 14px;overflow:auto;line-height:1.5}
+</style></head><body><nav><span class="brand">🦫 OpsAxiom Hub</span><a href="../index.html" class="on">Skill 库</a><a href="../contribute.html">怎么贡献</a><a href="../governance.html">治理与投诉</a><a class="gh" href="https://github.com/hf4Academic/opsaxiom-registry">GitHub ↗</a></nav><header><h1>Deployment 回滚到上一版本 <span class="badge" style="background:#3b82f6" title="在模拟环境里跑通了整套判断逻辑">🧪 仿真验证</span></h1><div class="sub"><code>k8s.release.rollback</code> · k8s/release/rollback · v0.1.0</div><div style="margin-top:10px"><a class="btn" href="../index.html">← 返回首页</a> <a class="btn warn" href="https://github.com/hf4Academic/opsaxiom-registry/issues/new?labels=report&title=%5Breport%5D%20k8s.release.rollback&body=%23%23%20被投诉%20Skill%0A%60k8s.release.rollback%60%0A%0A%23%23%20问题（误导%2F翻车%2F过时%2F安全隐患）%0A%0A%23%23%20环境与复现%0A">👎 投诉此 Skill</a></div></header><div class="wrap"><h2>决策树</h2><p class="mut">入口：<code>assess_current</code></p>
+<div class="node">
+<div class="t">[check] assess_current — 确认当前版本异常且存在可回滚的历史版本</div>
+<div class="mut">· 当 <code>revision_count &gt;= 2</code> → identify_target</div>
+<div class="mut">· 当 <code>revision_count &lt; 2</code> → no_history_exit</div>
+<div class="mut">· 否则 → escalate</div>
+<div class="caut">⚠ 回滚前先确认新版本确实是问题根源——如果问题是外部依赖或数据，回滚代码无济于事反而白折腾</div>
+<div class="caut">⚠ 回滚只回 Deployment 的 Pod 模板，不回滚数据库 schema/数据迁移。若新版本做了不兼容的 DB 变更，回滚可能引发更严重问题——先确认迁移是否向后兼容</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] no_history_exit — 无可回滚的历史版本(revision&lt;2)。当前版本是首版或历史被清理。只能向前修复(fix-forward)，不能回滚。</div>
+</div>
+<div class="node">
+<div class="t">[check] identify_target — 确认回滚目标版本</div>
+<div class="mut">· 当 <code>any(lines[] matches &#x27;Image|Containers&#x27;)</code> → do_rollback</div>
+<div class="mut">· 否则 → escalate</div>
+<div class="caut">⚠ 默认回滚到上一版(revision-1)，但&#x27;上一版&#x27;未必是&#x27;最后一个好版本&#x27;。核对目标 revision 的镜像确实是已知正常的版本</div>
+</div>
+<div class="node">
+<div class="t">[action] do_rollback — 执行回滚</div>
+<div class="caut">⚠ transaction 型回滚：本操作本身就是一次&#x27;回滚上一版&#x27;，若发现回错了版本，确认窗口内可再 rollout undo 回到操作前状态</div>
+<div class="caut">⚠ 回滚是 K8s 原生事务(rollout undo)，天然可逆——但要在 verify 确认业务真恢复，而非只看 Pod Ready(Pod 起来≠业务正常)</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] done_ok — 回滚完成，目标版本 Pod 全部 Ready。务必确认业务指标(错误率/延迟)真正恢复，而非只看 Pod 状态。事后：记录本次故障版本，阻止其再次发布；补充发布前的检查项。</div>
+</div>
+<div class="node exit-esc">
+<div class="t">[escalate] escalate — 打包升级：rollout history、当前副本状态、目标 revision 详情、业务异常证据。</div>
+</div><h2>实地验证（attestation）</h2><p class="mut">暂无实地验证记录。</p></div></body></html>

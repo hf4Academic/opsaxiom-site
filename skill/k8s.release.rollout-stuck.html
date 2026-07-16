@@ -1,0 +1,80 @@
+<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>发布卡住 / rollout 不推进排查</title><style>
+:root{--bg:#f8fafc;--card:#ffffff;--fg:#1e293b;--mut:#64748b;--acc:#2563eb;--line:#e2e8f0}
+*{box-sizing:border-box}body{margin:0;font:15px/1.6 -apple-system,Segoe UI,Roboto,'Noto Sans CJK SC',sans-serif;background:var(--bg);color:var(--fg)}
+a{color:var(--acc);text-decoration:none}a:hover{text-decoration:underline}
+nav{display:flex;gap:18px;align-items:center;padding:12px 32px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0}
+nav .brand{font-weight:700;color:var(--fg)}nav a{color:var(--mut);font-size:14px}nav a.on,nav a:hover{color:var(--acc)}
+nav .gh{margin-left:auto}
+header{padding:22px 32px;border-bottom:1px solid var(--line);background:#fff}
+h1{margin:0;font-size:22px}.sub{color:var(--mut);font-size:13px;margin-top:4px}
+.wrap{max-width:1000px;margin:0 auto;padding:24px 32px}
+input#q{width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--line);background:#fff;color:var(--fg);font-size:15px;margin-bottom:20px}
+.dom{color:var(--mut);text-transform:uppercase;font-size:12px;letter-spacing:.08em;margin:22px 0 8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:8px 0;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+.card h3{margin:0 0 4px;font-size:16px}.badge{font-size:12px;padding:2px 8px;border-radius:999px;color:#fff;font-weight:600}
+.mut{color:var(--mut);font-size:13px}
+.node{background:#f1f5f9;border-left:3px solid #cbd5e1;padding:8px 12px;margin:6px 0;border-radius:6px}
+.node .t{font-weight:600}.caut{color:#b45309;font-size:13px;margin:3px 0 3px 12px}
+.exit-done{border-left-color:#22c55e}.exit-esc{border-left-color:#f59e0b}
+table{width:100%;border-collapse:collapse;margin-top:8px}td,th{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);font-size:13px}
+.pill{font-size:12px;color:var(--mut)}
+.btn{display:inline-block;padding:8px 14px;border-radius:10px;border:1px solid var(--line);background:#fff;font-size:14px}
+.btn:hover{border-color:var(--acc);text-decoration:none}
+.btn.warn{color:#b91c1c;border-color:#fecaca}.btn.warn:hover{border-color:#b91c1c}
+.badge{display:inline-flex;align-items:center;gap:4px;line-height:1.4}
+.legend{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 20px}
+.legend-title{font-size:13px;color:var(--mut);margin-bottom:10px}
+.legend-item{display:flex;align-items:center;gap:10px;padding:5px 0}
+.legend-txt{font-size:13px;color:var(--fg)}
+@media(min-width:640px){.legend{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px}.legend-title{grid-column:1/-1}}
+.step{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:12px 0}
+.step h3{margin:0 0 6px;font-size:15px}
+code,pre{background:#f1f5f9;border-radius:6px;padding:1px 6px;font-size:13px}
+pre{padding:12px 14px;overflow:auto;line-height:1.5}
+</style></head><body><nav><span class="brand">🦫 OpsAxiom Hub</span><a href="../index.html" class="on">Skill 库</a><a href="../contribute.html">怎么贡献</a><a href="../governance.html">治理与投诉</a><a class="gh" href="https://github.com/hf4Academic/opsaxiom-registry">GitHub ↗</a></nav><header><h1>发布卡住 / rollout 不推进排查 <span class="badge" style="background:#3b82f6" title="在模拟环境里跑通了整套判断逻辑">🧪 仿真验证</span></h1><div class="sub"><code>k8s.release.rollout-stuck</code> · k8s/release/rollout-stuck · v0.1.0</div><div style="margin-top:10px"><a class="btn" href="../index.html">← 返回首页</a> <a class="btn warn" href="https://github.com/hf4Academic/opsaxiom-registry/issues/new?labels=report&title=%5Breport%5D%20k8s.release.rollout-stuck&body=%23%23%20被投诉%20Skill%0A%60k8s.release.rollout-stuck%60%0A%0A%23%23%20问题（误导%2F翻车%2F过时%2F安全隐患）%0A%0A%23%23%20环境与复现%0A">👎 投诉此 Skill</a></div></header><div class="wrap"><h2>决策树</h2><p class="mut">入口：<code>locate_stuck</code></p>
+<div class="node">
+<div class="t">[check] locate_stuck — 定位卡在哪个环节</div>
+<div class="mut">· 当 <code>updated_replicas == 0</code> → new_pods_not_starting</div>
+<div class="mut">· 当 <code>updated_replicas &gt; 0 and ready_replicas &lt; spec_replicas</code> → new_pods_not_ready</div>
+<div class="mut">· 否则 → check_pdb</div>
+<div class="caut">⚠ 先看新 RS 的 Pod 有没有起来：updatedReplicas=0→新 Pod 根本没创建(配额/调度问题)；&gt;0 但没 Ready→新 Pod 起来了但过不了就绪探针</div>
+<div class="caut">⚠ 发布卡住时旧版本通常还在服务(这是 rollingUpdate 的保护)，所以业务可能没受影响——别慌，有时间慢慢排</div>
+</div>
+<div class="node">
+<div class="t">[check] new_pods_not_starting — 新 Pod 未创建——查为什么</div>
+<div class="mut">· 当 <code>any(lines[] matches &#x27;quota|exceeded|forbidden&#x27;)</code> → quota_exit</div>
+<div class="mut">· 当 <code>any(lines[] matches &#x27;FailedCreate|limit&#x27;)</code> → quota_exit</div>
+<div class="mut">· 否则 → scheduling_exit</div>
+<div class="caut">⚠ 新 RS 建了但 Pod 数为 0，看 RS 的 events：常见是 ResourceQuota 超限或 LimitRange 拒绝</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] quota_exit — 新 Pod 因配额/限额创建失败(ResourceQuota 或 LimitRange)。核对 namespace 配额余量与新版本 requests；发布若调高了资源请求会触发。方向：清理资源或调整配额/请求。</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] scheduling_exit — 新 Pod 创建了但调度不上去。转 k8s/scheduling/pending-unschedulable 排查调度失败原因(资源/污点/亲和性)。</div>
+</div>
+<div class="node">
+<div class="t">[check] new_pods_not_ready — 新 Pod 起来了但不 Ready——查就绪失败</div>
+<div class="mut">· 当 <code>any(lines[] matches &#x27;CrashLoop|Error&#x27;)</code> → crashloop_exit</div>
+<div class="mut">· 当 <code>any(lines[] matches &#x27;Running.*false&#x27;)</code> → readiness_exit</div>
+<div class="mut">· 否则 → escalate</div>
+<div class="caut">⚠ 新版本 Pod 起不来时，progressDeadlineSeconds 到期后 rollout 会标记为失败但不自动回滚——需要人工决定 fix-forward 还是回滚</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] crashloop_exit — 新版本 Pod CrashLoop，发布引入了崩溃。转 k8s/workload/crashloop 定位崩溃原因。决策：能快速修则 fix-forward，否则 kubectl rollout undo 回滚(转 k8s/release/</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] readiness_exit — 新 Pod Running 但 readinessProbe 不过，卡在就绪。检查新版本的健康检查端点、启动耗时是否超过探针初始延迟、依赖是否就绪。转 k8s/workload/probe-failing。</div>
+</div>
+<div class="node">
+<div class="t">[check] check_pdb — 检查是否被 PodDisruptionBudget 阻塞</div>
+<div class="mut">· 当 <code>any(lines[] matches &#x27;0 +[0-9]|DISRUPTIONS&#x27;)</code> → pdb_exit</div>
+<div class="mut">· 否则 → escalate</div>
+<div class="caut">⚠ PDB 设置过严(minAvailable 太高)会阻止旧 Pod 被驱逐，导致滚动更新推不下去——容易被忽略的卡点</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] pdb_exit — PodDisruptionBudget 阻止了旧 Pod 驱逐，滚动更新卡住。核对 PDB 的 minAvailable/maxUnavailable 是否与副本数矛盾(如 3 副本却要求 minAvailable=3)。</div>
+</div>
+<div class="node exit-esc">
+<div class="t">[escalate] escalate — 打包升级：deploy status、新老 RS 状态、Pod 就绪情况、events、PDB。</div>
+</div><h2>实地验证（attestation）</h2><p class="mut">暂无实地验证记录。</p></div></body></html>

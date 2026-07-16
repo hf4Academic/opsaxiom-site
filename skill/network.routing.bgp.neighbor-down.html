@@ -1,0 +1,107 @@
+<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>BGP 邻居中断排查与恢复</title><style>
+:root{--bg:#f8fafc;--card:#ffffff;--fg:#1e293b;--mut:#64748b;--acc:#2563eb;--line:#e2e8f0}
+*{box-sizing:border-box}body{margin:0;font:15px/1.6 -apple-system,Segoe UI,Roboto,'Noto Sans CJK SC',sans-serif;background:var(--bg);color:var(--fg)}
+a{color:var(--acc);text-decoration:none}a:hover{text-decoration:underline}
+nav{display:flex;gap:18px;align-items:center;padding:12px 32px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0}
+nav .brand{font-weight:700;color:var(--fg)}nav a{color:var(--mut);font-size:14px}nav a.on,nav a:hover{color:var(--acc)}
+nav .gh{margin-left:auto}
+header{padding:22px 32px;border-bottom:1px solid var(--line);background:#fff}
+h1{margin:0;font-size:22px}.sub{color:var(--mut);font-size:13px;margin-top:4px}
+.wrap{max-width:1000px;margin:0 auto;padding:24px 32px}
+input#q{width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--line);background:#fff;color:var(--fg);font-size:15px;margin-bottom:20px}
+.dom{color:var(--mut);text-transform:uppercase;font-size:12px;letter-spacing:.08em;margin:22px 0 8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:8px 0;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+.card h3{margin:0 0 4px;font-size:16px}.badge{font-size:12px;padding:2px 8px;border-radius:999px;color:#fff;font-weight:600}
+.mut{color:var(--mut);font-size:13px}
+.node{background:#f1f5f9;border-left:3px solid #cbd5e1;padding:8px 12px;margin:6px 0;border-radius:6px}
+.node .t{font-weight:600}.caut{color:#b45309;font-size:13px;margin:3px 0 3px 12px}
+.exit-done{border-left-color:#22c55e}.exit-esc{border-left-color:#f59e0b}
+table{width:100%;border-collapse:collapse;margin-top:8px}td,th{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);font-size:13px}
+.pill{font-size:12px;color:var(--mut)}
+.btn{display:inline-block;padding:8px 14px;border-radius:10px;border:1px solid var(--line);background:#fff;font-size:14px}
+.btn:hover{border-color:var(--acc);text-decoration:none}
+.btn.warn{color:#b91c1c;border-color:#fecaca}.btn.warn:hover{border-color:#b91c1c}
+.badge{display:inline-flex;align-items:center;gap:4px;line-height:1.4}
+.legend{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 20px}
+.legend-title{font-size:13px;color:var(--mut);margin-bottom:10px}
+.legend-item{display:flex;align-items:center;gap:10px;padding:5px 0}
+.legend-txt{font-size:13px;color:var(--fg)}
+@media(min-width:640px){.legend{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px}.legend-title{grid-column:1/-1}}
+.step{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:12px 0}
+.step h3{margin:0 0 6px;font-size:15px}
+code,pre{background:#f1f5f9;border-radius:6px;padding:1px 6px;font-size:13px}
+pre{padding:12px 14px;overflow:auto;line-height:1.5}
+</style></head><body><nav><span class="brand">🦫 OpsAxiom Hub</span><a href="../index.html" class="on">Skill 库</a><a href="../contribute.html">怎么贡献</a><a href="../governance.html">治理与投诉</a><a class="gh" href="https://github.com/hf4Academic/opsaxiom-registry">GitHub ↗</a></nav><header><h1>BGP 邻居中断排查与恢复 <span class="badge" style="background:#3b82f6" title="在模拟环境里跑通了整套判断逻辑">🧪 仿真验证</span></h1><div class="sub"><code>network.routing.bgp.neighbor-down</code> · network/routing/bgp-neighbor-down · v0.1.0</div><div style="margin-top:10px"><a class="btn" href="../index.html">← 返回首页</a> <a class="btn warn" href="https://github.com/hf4Academic/opsaxiom-registry/issues/new?labels=report&title=%5Breport%5D%20network.routing.bgp.neighbor-down&body=%23%23%20被投诉%20Skill%0A%60network.routing.bgp.neighbor-down%60%0A%0A%23%23%20问题（误导%2F翻车%2F过时%2F安全隐患）%0A%0A%23%23%20环境与复现%0A">👎 投诉此 Skill</a></div></header><div class="wrap"><h2>决策树</h2><p class="mut">入口：<code>peer_state</code></p>
+<div class="node">
+<div class="t">[check] peer_state — 确认邻居当前状态</div>
+<div class="mut">· 当 <code>state == &#x27;Idle&#x27; and admin_state == &#x27;shutdown&#x27;</code> → admin_shutdown_found</div>
+<div class="mut">· 当 <code>state == &#x27;Idle&#x27;</code> → check_reachability</div>
+<div class="mut">· 当 <code>state == &#x27;Active&#x27; or state == &#x27;Connect&#x27;</code> → check_reachability</div>
+<div class="mut">· 当 <code>state == &#x27;OpenSent&#x27; or state == &#x27;OpenConfirm&#x27;</code> → check_session_params</div>
+<div class="mut">· 当 <code>state == &#x27;Established&#x27;</code> → flapping_check</div>
+<div class="mut">· 否则 → escalate</div>
+<div class="caut">⚠ Idle 和 Active 的含义与直觉相反：Active 表示正在主动尝试 TCP 连接，不是&#x27;正常&#x27;</div>
+<div class="caut">⚠ 先看状态机卡在哪一层再动手：TCP 层问题查连通性，OPEN 层问题查参数</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] admin_shutdown_found — 邻居处于管理性 shutdown（人为关闭）。这是配置意图而非故障——请先与变更记录/同事核实关闭原因，不要擅自 no shutdown。</div>
+</div>
+<div class="node">
+<div class="t">[check] check_reachability — 检查到邻居的 TCP/IP 可达性</div>
+<div class="mut">· 当 <code>loss_pct == 100</code> → check_interface</div>
+<div class="mut">· 当 <code>loss_pct == 0</code> → check_tcp_179</div>
+<div class="mut">· 当 <code>loss_pct &gt; 0 and loss_pct &lt; 100</code> → escalate</div>
+<div class="mut">· 否则 → escalate</div>
+<div class="caut">⚠ 必须指定 source 为 BGP update-source 地址——默认出接口 ping 通不代表 BGP 会话路径通</div>
+</div>
+<div class="node">
+<div class="t">[check] check_interface — 检查物理接口与直连</div>
+<div class="mut">· 当 <code>link_state != &#x27;up&#x27;</code> → physical_layer_exit</div>
+<div class="mut">· 当 <code>link_state == &#x27;up&#x27; and delta(input_errors, 60s) &gt; 0</code> → physical_layer_exit</div>
+<div class="mut">· 当 <code>link_state == &#x27;up&#x27;</code> → escalate</div>
+<div class="mut">· 否则 → escalate</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] physical_layer_exit — 根因在物理层/链路层（接口 down 或错包增长）。请转入 network/physical 域的对应 Skill（光模块/线缆排查），BGP 会话会在链路恢复后自愈。</div>
+</div>
+<div class="node">
+<div class="t">[check] check_tcp_179 — ICMP 通但会话不建立——检查 TCP 179 与控制面策略</div>
+<div class="mut">· 当 <code>count(lines) &gt; 0</code> → acl_suspect</div>
+<div class="mut">· 当 <code>count(lines) == 0</code> → check_session_params</div>
+<div class="mut">· 否则 → check_session_params</div>
+<div class="caut">⚠ 还要考虑对端防火墙与 GTSM/TTL 安全（ebgp-multihop / ttl-security 配置不对称）</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] acl_suspect — 存在涉及 TCP/179 的过滤策略（详单见上）。修改 ACL 属于安全策略变更，超出本 Skill 授权范围——请走 network/security-policy 域流程，并与安全团队确认该条目意图。</div>
+</div>
+<div class="node">
+<div class="t">[check] check_session_params — 会话参数核对（AS 号 / 认证 / 能力协商）</div>
+<div class="mut">· 当 <code>any(lines[] matches &#x27;bad AS|OPEN.*error|AS number&#x27;)</code> → config_mismatch_exit</div>
+<div class="mut">· 当 <code>any(lines[] matches &#x27;MD5|authentication|TCP.*fail&#x27;)</code> → config_mismatch_exit</div>
+<div class="mut">· 当 <code>any(lines[] matches &#x27;notification|hold time|Cease&#x27;)</code> → ask_soft_reset</div>
+<div class="mut">· 否则 → ask_soft_reset</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] config_mismatch_exit — 日志显示会话参数不匹配（AS 号/认证/能力，证据见上）。这需要和对端管理员核对预期配置后走变更流程修正——单侧盲改无意义且危险。已生成核对清单。</div>
+</div>
+<div class="node">
+<div class="t">[ask] ask_soft_reset — 是否尝试软复位会话</div>
+</div>
+<div class="node">
+<div class="t">[action] soft_reset — BGP 会话软复位</div>
+</div>
+<div class="node">
+<div class="t">[check] flapping_check — 当前 Established——判断是否抖动（flapping）</div>
+<div class="mut">· 当 <code>flap_count_24h &gt;= 3</code> → escalate</div>
+<div class="mut">· 当 <code>flap_count_24h &lt; 3</code> → done_recovered</div>
+<div class="mut">· 否则 → done_recovered</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] done_recovered — 会话当前 Established 且无频繁抖动记录，可能在你介入前已自愈。建议保留本次采集的日志证据，观察 24h。</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] done_ok — 软复位后会话恢复 Established，前缀数回到基线。建议：记录本次根因证据链；若同一邻居 7 天内再次中断，直接走升级路径。</div>
+</div>
+<div class="node exit-esc">
+<div class="t">[escalate] escalate — 打包升级：设备型号/版本、状态机卡点、可达性结论、日志证据、已走路径。</div>
+</div><h2>实地验证（attestation）</h2><p class="mut">暂无实地验证记录。</p></div></body></html>

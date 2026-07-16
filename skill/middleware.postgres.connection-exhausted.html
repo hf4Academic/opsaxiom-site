@@ -1,0 +1,60 @@
+<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PostgreSQL 连接耗尽排查</title><style>
+:root{--bg:#f8fafc;--card:#ffffff;--fg:#1e293b;--mut:#64748b;--acc:#2563eb;--line:#e2e8f0}
+*{box-sizing:border-box}body{margin:0;font:15px/1.6 -apple-system,Segoe UI,Roboto,'Noto Sans CJK SC',sans-serif;background:var(--bg);color:var(--fg)}
+a{color:var(--acc);text-decoration:none}a:hover{text-decoration:underline}
+nav{display:flex;gap:18px;align-items:center;padding:12px 32px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0}
+nav .brand{font-weight:700;color:var(--fg)}nav a{color:var(--mut);font-size:14px}nav a.on,nav a:hover{color:var(--acc)}
+nav .gh{margin-left:auto}
+header{padding:22px 32px;border-bottom:1px solid var(--line);background:#fff}
+h1{margin:0;font-size:22px}.sub{color:var(--mut);font-size:13px;margin-top:4px}
+.wrap{max-width:1000px;margin:0 auto;padding:24px 32px}
+input#q{width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--line);background:#fff;color:var(--fg);font-size:15px;margin-bottom:20px}
+.dom{color:var(--mut);text-transform:uppercase;font-size:12px;letter-spacing:.08em;margin:22px 0 8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:8px 0;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+.card h3{margin:0 0 4px;font-size:16px}.badge{font-size:12px;padding:2px 8px;border-radius:999px;color:#fff;font-weight:600}
+.mut{color:var(--mut);font-size:13px}
+.node{background:#f1f5f9;border-left:3px solid #cbd5e1;padding:8px 12px;margin:6px 0;border-radius:6px}
+.node .t{font-weight:600}.caut{color:#b45309;font-size:13px;margin:3px 0 3px 12px}
+.exit-done{border-left-color:#22c55e}.exit-esc{border-left-color:#f59e0b}
+table{width:100%;border-collapse:collapse;margin-top:8px}td,th{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);font-size:13px}
+.pill{font-size:12px;color:var(--mut)}
+.btn{display:inline-block;padding:8px 14px;border-radius:10px;border:1px solid var(--line);background:#fff;font-size:14px}
+.btn:hover{border-color:var(--acc);text-decoration:none}
+.btn.warn{color:#b91c1c;border-color:#fecaca}.btn.warn:hover{border-color:#b91c1c}
+.badge{display:inline-flex;align-items:center;gap:4px;line-height:1.4}
+.legend{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 20px}
+.legend-title{font-size:13px;color:var(--mut);margin-bottom:10px}
+.legend-item{display:flex;align-items:center;gap:10px;padding:5px 0}
+.legend-txt{font-size:13px;color:var(--fg)}
+@media(min-width:640px){.legend{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px}.legend-title{grid-column:1/-1}}
+.step{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:12px 0}
+.step h3{margin:0 0 6px;font-size:15px}
+code,pre{background:#f1f5f9;border-radius:6px;padding:1px 6px;font-size:13px}
+pre{padding:12px 14px;overflow:auto;line-height:1.5}
+</style></head><body><nav><span class="brand">🦫 OpsAxiom Hub</span><a href="../index.html" class="on">Skill 库</a><a href="../contribute.html">怎么贡献</a><a href="../governance.html">治理与投诉</a><a class="gh" href="https://github.com/hf4Academic/opsaxiom-registry">GitHub ↗</a></nav><header><h1>PostgreSQL 连接耗尽排查 <span class="badge" style="background:#3b82f6" title="在模拟环境里跑通了整套判断逻辑">🧪 仿真验证</span></h1><div class="sub"><code>middleware.postgres.connection-exhausted</code> · middleware/postgres/connection-exhausted · v0.1.0</div><div style="margin-top:10px"><a class="btn" href="../index.html">← 返回首页</a> <a class="btn warn" href="https://github.com/hf4Academic/opsaxiom-registry/issues/new?labels=report&title=%5Breport%5D%20middleware.postgres.connection-exhausted&body=%23%23%20被投诉%20Skill%0A%60middleware.postgres.connection-exhausted%60%0A%0A%23%23%20问题（误导%2F翻车%2F过时%2F安全隐患）%0A%0A%23%23%20环境与复现%0A">👎 投诉此 Skill</a></div></header><div class="wrap"><h2>决策树</h2><p class="mut">入口：<code>check_used</code></p>
+<div class="node">
+<div class="t">[check] check_used — 查当前连接数</div>
+<div class="mut">· 当 <code>output.value &gt; 90</code> → check_idle</div>
+<div class="mut">· 当 <code>output.value &lt;= 90</code> → done_conn_ok</div>
+<div class="mut">· 否则 → check_idle</div>
+<div class="caut">⚠ PG 每个连接是一个进程,连接数打满不只是拒新连,还很吃内存;max_connections 调太大反而伤性能——正解常是前面挂连接池(pgbouncer)而非一味调大</div>
+</div>
+<div class="node">
+<div class="t">[check] check_idle — 看有多少是 idle in transaction 僵连接</div>
+<div class="mut">· 当 <code>output.value &gt; 0</code> → done_idle_in_txn</div>
+<div class="mut">· 当 <code>output.value == 0</code> → done_real_load</div>
+<div class="mut">· 否则 → escalate</div>
+<div class="caut">⚠ &#x27;idle in transaction&#x27;=开了事务不提交也不回滚,既占连接又持锁还阻塞 vacuum——多为应用忘了 commit 或连接池归还前没结束事务,是连接被白占的头号原因</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] done_conn_ok — 连接数不高。连不上另查(网络/pg_hba 认证/监听地址/服务是否在跑)。</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] done_idle_in_txn — 大量 idle in transaction 僵连接占满槽位。定位来源应用修复其事务收尾(及时 commit/rollback)、设 idle_in_transaction_session_timeout 兜底;前置 pgbouncer 复</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] done_real_load — 连接确为真实活跃负载打满。前面加连接池(pgbouncer)复用、优化慢查询缩短占用、评估后适度上调 max_connections(注意内存);别让每个客户端直连吃满进程数。</div>
+</div>
+<div class="node exit-esc">
+<div class="t">[escalate] escalate — 打包升级：已采集的事实与走过的路径。</div>
+</div><h2>实地验证（attestation）</h2><p class="mut">暂无实地验证记录。</p></div></body></html>

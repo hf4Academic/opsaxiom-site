@@ -1,0 +1,60 @@
+<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>异常监听端口审计</title><style>
+:root{--bg:#f8fafc;--card:#ffffff;--fg:#1e293b;--mut:#64748b;--acc:#2563eb;--line:#e2e8f0}
+*{box-sizing:border-box}body{margin:0;font:15px/1.6 -apple-system,Segoe UI,Roboto,'Noto Sans CJK SC',sans-serif;background:var(--bg);color:var(--fg)}
+a{color:var(--acc);text-decoration:none}a:hover{text-decoration:underline}
+nav{display:flex;gap:18px;align-items:center;padding:12px 32px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0}
+nav .brand{font-weight:700;color:var(--fg)}nav a{color:var(--mut);font-size:14px}nav a.on,nav a:hover{color:var(--acc)}
+nav .gh{margin-left:auto}
+header{padding:22px 32px;border-bottom:1px solid var(--line);background:#fff}
+h1{margin:0;font-size:22px}.sub{color:var(--mut);font-size:13px;margin-top:4px}
+.wrap{max-width:1000px;margin:0 auto;padding:24px 32px}
+input#q{width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--line);background:#fff;color:var(--fg);font-size:15px;margin-bottom:20px}
+.dom{color:var(--mut);text-transform:uppercase;font-size:12px;letter-spacing:.08em;margin:22px 0 8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:8px 0;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+.card h3{margin:0 0 4px;font-size:16px}.badge{font-size:12px;padding:2px 8px;border-radius:999px;color:#fff;font-weight:600}
+.mut{color:var(--mut);font-size:13px}
+.node{background:#f1f5f9;border-left:3px solid #cbd5e1;padding:8px 12px;margin:6px 0;border-radius:6px}
+.node .t{font-weight:600}.caut{color:#b45309;font-size:13px;margin:3px 0 3px 12px}
+.exit-done{border-left-color:#22c55e}.exit-esc{border-left-color:#f59e0b}
+table{width:100%;border-collapse:collapse;margin-top:8px}td,th{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);font-size:13px}
+.pill{font-size:12px;color:var(--mut)}
+.btn{display:inline-block;padding:8px 14px;border-radius:10px;border:1px solid var(--line);background:#fff;font-size:14px}
+.btn:hover{border-color:var(--acc);text-decoration:none}
+.btn.warn{color:#b91c1c;border-color:#fecaca}.btn.warn:hover{border-color:#b91c1c}
+.badge{display:inline-flex;align-items:center;gap:4px;line-height:1.4}
+.legend{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 20px}
+.legend-title{font-size:13px;color:var(--mut);margin-bottom:10px}
+.legend-item{display:flex;align-items:center;gap:10px;padding:5px 0}
+.legend-txt{font-size:13px;color:var(--fg)}
+@media(min-width:640px){.legend{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px}.legend-title{grid-column:1/-1}}
+.step{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:12px 0}
+.step h3{margin:0 0 6px;font-size:15px}
+code,pre{background:#f1f5f9;border-radius:6px;padding:1px 6px;font-size:13px}
+pre{padding:12px 14px;overflow:auto;line-height:1.5}
+</style></head><body><nav><span class="brand">🦫 OpsAxiom Hub</span><a href="../index.html" class="on">Skill 库</a><a href="../contribute.html">怎么贡献</a><a href="../governance.html">治理与投诉</a><a class="gh" href="https://github.com/hf4Academic/opsaxiom-registry">GitHub ↗</a></nav><header><h1>异常监听端口审计 <span class="badge" style="background:#3b82f6" title="在模拟环境里跑通了整套判断逻辑">🧪 仿真验证</span></h1><div class="sub"><code>sec.network.unexpected-listen</code> · sec/network/unexpected-listen · v0.1.0</div><div style="margin-top:10px"><a class="btn" href="../index.html">← 返回首页</a> <a class="btn warn" href="https://github.com/hf4Academic/opsaxiom-registry/issues/new?labels=report&title=%5Breport%5D%20sec.network.unexpected-listen&body=%23%23%20被投诉%20Skill%0A%60sec.network.unexpected-listen%60%0A%0A%23%23%20问题（误导%2F翻车%2F过时%2F安全隐患）%0A%0A%23%23%20环境与复现%0A">👎 投诉此 Skill</a></div></header><div class="wrap"><h2>决策树</h2><p class="mut">入口：<code>check_listen</code></p>
+<div class="node">
+<div class="t">[check] check_listen — 统计对外(非本地回环)监听端口数</div>
+<div class="mut">· 当 <code>output.value &gt; 0</code> → check_high_ports</div>
+<div class="mut">· 当 <code>output.value == 0</code> → done_only_local</div>
+<div class="mut">· 否则 → check_high_ports</div>
+<div class="caut">⚠ 监听 0.0.0.0/:: 才是对外暴露,只听 127.0.0.1 的服务不对外;审计时先把回环的排除,剩下的每个对外端口都要能对应到一个已知服务</div>
+</div>
+<div class="node">
+<div class="t">[check] check_high_ports — 查高位端口上的可疑监听</div>
+<div class="mut">· 当 <code>output.value &gt; 0</code> → done_high_listen</div>
+<div class="mut">· 当 <code>output.value == 0</code> → done_listen_known</div>
+<div class="mut">· 否则 → escalate</div>
+<div class="caut">⚠ 高位端口对外监听不一定是坏事(很多正常服务用高位),但要能说清是哪个进程/服务;对不上进程、或进程名可疑(乱码/隐藏路径)的高位监听,是反连木马/后门的特征</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] done_only_local — 仅本地回环监听,无对外暴露。基线良好;若预期应有对外服务却没有,反查服务是否没起。</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] done_high_listen — 存在对外的高位端口监听。逐一用 ss -ltnp 对应进程,确认每个都是已知服务;对不上进程或进程可疑的,取证排查是否为后门/反连木马。</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] done_listen_known — 对外监听均在常规端口。仍应逐一核对进程与预期一致,并用防火墙收窄对外暴露面(只放行必要端口+来源)。</div>
+</div>
+<div class="node exit-esc">
+<div class="t">[escalate] escalate — 打包升级：已采集的事实与走过的路径。</div>
+</div><h2>实地验证（attestation）</h2><p class="mut">暂无实地验证记录。</p></div></body></html>

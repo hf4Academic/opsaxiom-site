@@ -1,0 +1,72 @@
+<!doctype html><html lang="zh"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>内核 soft/hard lockup 排查</title><style>
+:root{--bg:#f8fafc;--card:#ffffff;--fg:#1e293b;--mut:#64748b;--acc:#2563eb;--line:#e2e8f0}
+*{box-sizing:border-box}body{margin:0;font:15px/1.6 -apple-system,Segoe UI,Roboto,'Noto Sans CJK SC',sans-serif;background:var(--bg);color:var(--fg)}
+a{color:var(--acc);text-decoration:none}a:hover{text-decoration:underline}
+nav{display:flex;gap:18px;align-items:center;padding:12px 32px;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0}
+nav .brand{font-weight:700;color:var(--fg)}nav a{color:var(--mut);font-size:14px}nav a.on,nav a:hover{color:var(--acc)}
+nav .gh{margin-left:auto}
+header{padding:22px 32px;border-bottom:1px solid var(--line);background:#fff}
+h1{margin:0;font-size:22px}.sub{color:var(--mut);font-size:13px;margin-top:4px}
+.wrap{max-width:1000px;margin:0 auto;padding:24px 32px}
+input#q{width:100%;padding:12px 14px;border-radius:10px;border:1px solid var(--line);background:#fff;color:var(--fg);font-size:15px;margin-bottom:20px}
+.dom{color:var(--mut);text-transform:uppercase;font-size:12px;letter-spacing:.08em;margin:22px 0 8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:8px 0;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+.card h3{margin:0 0 4px;font-size:16px}.badge{font-size:12px;padding:2px 8px;border-radius:999px;color:#fff;font-weight:600}
+.mut{color:var(--mut);font-size:13px}
+.node{background:#f1f5f9;border-left:3px solid #cbd5e1;padding:8px 12px;margin:6px 0;border-radius:6px}
+.node .t{font-weight:600}.caut{color:#b45309;font-size:13px;margin:3px 0 3px 12px}
+.exit-done{border-left-color:#22c55e}.exit-esc{border-left-color:#f59e0b}
+table{width:100%;border-collapse:collapse;margin-top:8px}td,th{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);font-size:13px}
+.pill{font-size:12px;color:var(--mut)}
+.btn{display:inline-block;padding:8px 14px;border-radius:10px;border:1px solid var(--line);background:#fff;font-size:14px}
+.btn:hover{border-color:var(--acc);text-decoration:none}
+.btn.warn{color:#b91c1c;border-color:#fecaca}.btn.warn:hover{border-color:#b91c1c}
+.badge{display:inline-flex;align-items:center;gap:4px;line-height:1.4}
+.legend{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:0 0 20px}
+.legend-title{font-size:13px;color:var(--mut);margin-bottom:10px}
+.legend-item{display:flex;align-items:center;gap:10px;padding:5px 0}
+.legend-txt{font-size:13px;color:var(--fg)}
+@media(min-width:640px){.legend{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px}.legend-title{grid-column:1/-1}}
+.step{background:#fff;border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:12px 0}
+.step h3{margin:0 0 6px;font-size:15px}
+code,pre{background:#f1f5f9;border-radius:6px;padding:1px 6px;font-size:13px}
+pre{padding:12px 14px;overflow:auto;line-height:1.5}
+</style></head><body><nav><span class="brand">🦫 OpsAxiom Hub</span><a href="../index.html" class="on">Skill 库</a><a href="../contribute.html">怎么贡献</a><a href="../governance.html">治理与投诉</a><a class="gh" href="https://github.com/hf4Academic/opsaxiom-registry">GitHub ↗</a></nav><header><h1>内核 soft/hard lockup 排查 <span class="badge" style="background:#3b82f6" title="在模拟环境里跑通了整套判断逻辑">🧪 仿真验证</span></h1><div class="sub"><code>host.cpu.softlockup</code> · host/cpu/softlockup · v0.1.0</div><div style="margin-top:10px"><a class="btn" href="../index.html">← 返回首页</a> <a class="btn warn" href="https://github.com/hf4Academic/opsaxiom-registry/issues/new?labels=report&title=%5Breport%5D%20host.cpu.softlockup&body=%23%23%20被投诉%20Skill%0A%60host.cpu.softlockup%60%0A%0A%23%23%20问题（误导%2F翻车%2F过时%2F安全隐患）%0A%0A%23%23%20环境与复现%0A">👎 投诉此 Skill</a></div></header><div class="wrap"><h2>决策树</h2><p class="mut">入口：<code>confirm_lockup</code></p>
+<div class="node">
+<div class="t">[check] confirm_lockup — 确认 lockup 类型</div>
+<div class="mut">· 当 <code>any(lines[] matches &#x27;hard LOCKUP|NMI watchdog&#x27;)</code> → hard_lockup_exit</div>
+<div class="mut">· 当 <code>any(lines[] matches &#x27;soft lockup&#x27;)</code> → soft_lockup_analyze</div>
+<div class="mut">· 当 <code>any(lines[] matches &#x27;rcu.*stall&#x27;)</code> → rcu_stall_exit</div>
+<div class="mut">· 当 <code>count(lines) == 0</code> → no_lockup</div>
+<div class="mut">· 否则 → escalate</div>
+<div class="caut">⚠ soft lockup=某 CPU 在内核态跑了 &gt;20s 没让出(watchdog 线程饿死)；hard lockup=CPU 连中断都不响应(更严重，常是硬件或死锁)</div>
+<div class="caut">⚠ lockup 常导致系统假死/命令卡住——能登进去排查已属幸运，优先抓 dmesg 和调用栈，随时可能彻底 hang</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] no_lockup — 近期 dmesg 无 lockup 记录。若系统曾假死，可能未留下日志(hard lockup 常来不及写盘)，检查是否有 kdump/vmcore。</div>
+</div>
+<div class="node">
+<div class="t">[check] soft_lockup_analyze — 从调用栈判断 soft lockup 来源</div>
+<div class="mut">· 当 <code>any(lines[] matches &#x27;spin_lock|mutex|down_&#x27;)</code> → lock_contention_exit</div>
+<div class="mut">· 当 <code>any(lines[] matches &#x27;xfs|ext4|nfs|blk|scsi&#x27;)</code> → io_stack_exit</div>
+<div class="mut">· 否则 → generic_soft_exit</div>
+<div class="caut">⚠ 调用栈里的锁函数(spin_lock/mutex)→内核锁竞争或死锁；文件系统/块层函数→底层 IO 卡死(常伴坏盘/存储抖动)</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] lock_contention_exit — soft lockup 栈指向内核锁竞争/死锁。收集完整 dmesg 栈，多为内核 bug 或驱动问题——记录内核版本，检索已知问题，考虑升级内核。禁止随意 kill 相关进程(可能加剧死锁)。</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] io_stack_exit — soft lockup 栈指向文件系统/块层，底层 IO 卡死。检查存储健康(SMART/RAID)、多路径状态、后端存储抖动。转 host/storage 排查硬件。</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] generic_soft_exit — soft lockup 但栈不典型。保存完整 dmesg 与内核版本，检查是否 CPU 长时间高负载饿死 watchdog(转 load-high)或已知内核 bug。</div>
+</div>
+<div class="node exit-esc">
+<div class="t">[escalate] hard_lockup_exit — hard lockup(NMI watchdog)——CPU 完全无响应，通常是硬件故障、内核死锁或虚拟化层问题。系统随时可能彻底 hang。立即：保存 dmesg、配置/检查 kdump 以便下次抓 vmcore、检查硬件(内存 ECC/</div>
+</div>
+<div class="node exit-done">
+<div class="t">[done] rcu_stall_exit — RCU stall——某 CPU 长时间未响应 RCU 宽限期，常与 soft lockup 同源(长时间关抢占/中断)。收集栈，多指向驱动或内核 bug。</div>
+</div>
+<div class="node exit-esc">
+<div class="t">[escalate] escalate — 打包升级：dmesg lockup 记录与调用栈、内核版本、是否配置 kdump、硬件信息。</div>
+</div><h2>实地验证（attestation）</h2><p class="mut">暂无实地验证记录。</p></div></body></html>

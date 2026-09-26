@@ -42,8 +42,8 @@ pre{padding:12px 14px;overflow:auto;line-height:1.5}
 </style></head><body><nav><span class="brand">🦫 OpsAxiom Hub</span><a href="../index.html" class="on">Skill 库</a><a href="../contribute.html">怎么贡献</a><a href="../governance.html">治理与投诉</a><a class="gh" href="https://github.com/hf4Academic/opsaxiom-registry">GitHub ↗</a></nav><header><h1>inode 耗尽排查（空间够却报满） <span class="badge" style="background:#3b82f6" title="在模拟环境里跑通了整套判断逻辑">🧪 仿真验证</span></h1><div class="sub"><code>host.storage.inode-exhausted</code> · host/storage/inode-exhausted · v0.1.0</div><div style="margin-top:10px"><a class="btn" href="../index.html">← 返回首页</a> <a class="btn warn" href="https://github.com/hf4Academic/opsaxiom-registry/issues/new?labels=report&title=%5Breport%5D%20host.storage.inode-exhausted&body=%23%23%20被投诉%20Skill%0A%60host.storage.inode-exhausted%60%0A%0A%23%23%20问题（误导%2F翻车%2F过时%2F安全隐患）%0A%0A%23%23%20环境与复现%0A">👎 投诉此 Skill</a></div></header><div class="wrap"><h2>决策树</h2><p class="mut">入口：<code>check_inode</code></p>
 <div class="node">
 <div class="t">[check] check_inode — 确认是否 inode 耗尽</div>
-<div class="mut">· 当 <code>output.value &gt;= 95</code> → find_dirs</div>
-<div class="mut">· 当 <code>output.value &lt; 95</code> → done_not_inode</div>
+<div class="mut">· 当 <code>rows[0].ipcent &gt;= 95</code> → find_dirs</div>
+<div class="mut">· 当 <code>rows[0].ipcent &lt; 95</code> → done_not_inode</div>
 <div class="mut">· 否则 → find_dirs</div>
 <div class="caut">⚠ df 显示有空间却报 No space left，几乎总是 inode 耗尽——这是本 Skill 的存在意义</div>
 </div>
